@@ -32,6 +32,7 @@ class LearningBridge:
         self.boot = secrets.token_hex(16)
         self.seen = {}
         self.sessions = {}
+        self.own_sessions = set()
 
     def view(self):
         return {"paired": self.key is not None}
@@ -60,6 +61,7 @@ class LearningBridge:
         self.boot = secrets.token_hex(16)
         self.seen.clear()
         self.sessions.clear()
+        self.own_sessions.clear()
         return {"learning_bridge_key": key} if key else {}
 
     def receive(self, token):
@@ -85,21 +87,31 @@ class LearningBridge:
         job = self.sessions.get(token)
         if job is None or actor["id"] != job.actor_id:
             raise Denied("Learning session unavailable")
-        runtime.store.get(job.voice_id, actor)
+        profile = runtime.store.get(job.voice_id, actor)
+        if token in self.own_sessions and profile.get("owner") != actor["id"]:
+            raise Denied("Phone learning is restricted to your assigned profile")
         job.learning.authorize(data.get("source"), token)
         return job
 
     async def dispatch(self, runtime, actor, users, operation, data, *, boot):
+        if operation == "own_profile":
+            profiles = [profile for profile in runtime.store.visible(actor) if profile.get("owner") == actor["id"]]
+            return {"id": profiles[0]["id"] if len(profiles) == 1 else None}
         if operation == "begin":
-            if (set(data) - {"id", "source", "consent", "isolation_confirmed"}
+            if (set(data) - {"id", "source", "consent", "isolation_confirmed", "own_only"}
                     or not isinstance(data.get("id"), str) or not data["id"]):
                 raise ValueError("Choose an existing authorised voice profile")
+            if "own_only" in data and data["own_only"] is not True:
+                raise ValueError("The own-profile restriction cannot be relaxed")
             self.sessions = {token: job for token, job in self.sessions.items()
                              if job.learning.expires > time.monotonic()}
+            self.own_sessions.intersection_update(self.sessions)
             if len(self.sessions) >= 32:
                 raise ValueError("Too many learning sessions")
             result = await runtime.action(actor, {**data, "action": "begin"}, users, bridge_boot=boot)
             self.sessions[result["session_token"]] = runtime.active
+            if data.get("own_only") is True:
+                self.own_sessions.add(result["session_token"])
             return result
         job = self.job(runtime, actor, data)
         headers = {"X-Learning-Source": data.get("source"), "X-Learning-Session": data.get("session_token")}

@@ -25,8 +25,25 @@ async def async_setup_entry(hass, entry):
         raise ConfigEntryNotReady("Learning bridge pairing is unavailable") from None
     coordinator = Coordinator(bridge, task_factory=lambda coroutine:
         entry.async_create_background_task(hass, coroutine, "voice_match_enrollment"))
-    hass.data[DOMAIN][entry.entry_id] = {"coordinator": coordinator, "speakers": {}}
+    phone = None
+    if entry.options.get("phone_test_enabled", False):
+        from .phone_runtime import PhoneRuntime
+        from .stt import control_source
+        try:
+            control_source(hass, entry.options.get("control_stt_engine"))
+        except ValueError:
+            raise ConfigEntryNotReady("Phone learning needs an ordinary Wyoming Whisper STT source") from None
+        phone = PhoneRuntime(hass, entry, bridge, entry.options["control_stt_engine"])
+    hass.data[DOMAIN][entry.entry_id] = {"coordinator": coordinator, "speakers": {}, "phone": phone}
+    if phone is not None:
+        from homeassistant.const import Platform
+        await hass.config_entries.async_forward_entry_setups(entry, [Platform.STT, Platform.CONVERSATION])
+    entry.async_on_unload(entry.add_update_listener(_reload_options))
     return True
+
+
+async def _reload_options(hass, entry):
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass, entry):
@@ -35,5 +52,11 @@ async def async_unload_entry(hass, entry):
         await runtime["coordinator"].cancel()
         if runtime["coordinator"].view()["restored"] is False:
             return False
+        if runtime.get("phone") is not None:
+            from homeassistant.const import Platform
+            if not await runtime["phone"].shutdown():
+                return False
+            if not await hass.config_entries.async_unload_platforms(entry, [Platform.STT, Platform.CONVERSATION]):
+                return False
         hass.data[DOMAIN].pop(entry.entry_id)
     return True

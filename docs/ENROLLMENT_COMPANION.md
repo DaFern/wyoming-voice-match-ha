@@ -7,8 +7,9 @@ re-enrol through it assuming these development protections are already present.
 
 The new companion manifest uses the placeholder prototype version `0.0.0`; the
 existing add-on version is unchanged. The companion targets **HA 2026.10**. It is
-not bundled into the add-on image, does not alter Codex, and does not provide an
-STT engine, Assist pipeline, voice intent, automation or native LLM tool.
+not bundled into the add-on image and does not alter Codex. It now provides an
+off-by-default experimental phone STT/learning-agent pair, but creates no Assist
+pipeline, voice intent, automation or native LLM tool automatically.
 
 ## What exists now
 
@@ -34,7 +35,32 @@ STT engine, Assist pipeline, voice intent, automation or native LLM tool.
 5. Completion means the backend's original job has finished validated
    installation and cleanup, not merely that there is no active job or that an
    old voiceprint exists. Terminal job receipts are in memory, bound to the
-   session, and cannot be used to cancel a later job. Restart loses receipts.
+    session, and cannot be used to cancel a later job. Restart loses receipts.
+
+## Dedicated phone assistant prototype
+
+See [phone implementation and native handoff limits](PHONE_PIPELINE_FEASIBILITY.md).
+After separately approved installation/pairing, the options can enable the phone
+entities with an explicit ordinary Wyoming Whisper STT selection. A separate
+assistant must select **both** learning entities; existing assistants stay as-is.
+No live assistant has been created during development.
+
+The native authenticated connection, account, exact pipeline task and chat bind a
+bounded RAM clip. Only the learning agent can submit it after authorisation and a
+spoken biometric notice followed by a separate yes. The account needs a uniquely
+assigned existing profile; the bridge's `own_profile` lookup and `own_only` session
+restriction apply even to administrators. General management permissions are not
+weakened or replaced. A typed marker, other task/connection/account, STT-only run
+or global-trigger interception cannot supply a training recording.
+
+Control transcription uses the selected Whisper source before consent; training
+storage starts only after consent. The first turn and consent/control turns are
+discarded, not samples. Pause retains partial samples for a freshly consented
+resume. Disconnect attempts an account-bound pause without admin fallback; an
+unverified cancellation is reported as attention. No raw clip or bearer credential
+is put in transcript text. Task identity remains version-dependent, not a public
+HA metadata guarantee. Actual Android microphone, follow-up listening, TTS echo
+exclusion and installed-patch acceptance remain unverified.
 
 ## Pairing trust and protocol
 
@@ -128,10 +154,11 @@ sent simultaneously into ordinary command processing, and TTS/playback must not
 enter training. Do not implement this by hooking private HA pipeline internals,
 copying diagnostic device-capture streams or adding a second ESPHome voice subscriber.
 
-Only an **in-process simulated speaker** implements this contract in tests. There
-is no Echo firmware extension, verified device identity, microphone capture,
-physical button approval, spoken consent/command recognition, automatic pipeline
-switch, or user-facing start flow yet. Existing profiles only are supported by
+Only an **in-process simulated speaker** implements the reserved-device contract
+in tests. The separate phone path above is not an Echo adapter. There is no Echo
+firmware extension, verified device identity, physical button approval or automatic
+pipeline switch. Real device microphone/TTS acceptance is still pending.
+Existing profiles only are supported by
 the bridge; approved creation/assignment for first-time screenless enrolment is
 future work. A spoken "learn my voice" request must not independently authorise
 replacement of another person's voiceprint.

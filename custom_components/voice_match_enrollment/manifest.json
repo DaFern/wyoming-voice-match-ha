@@ -3,7 +3,7 @@
   "name": "Voice Match Enrolment (Prototype)",
   "codeowners": ["@DaFern"],
   "config_flow": true,
-  "dependencies": ["websocket_api"],
+  "dependencies": ["conversation", "stt", "websocket_api"],
   "documentation": "https://github.com/DaFern/wyoming-voice-match-ha/blob/main/docs/ISOLATED_ENROLLMENT.md",
   "integration_type": "service",
   "iot_class": "local_polling",

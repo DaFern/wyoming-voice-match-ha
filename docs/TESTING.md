@@ -1,5 +1,46 @@
 # Validation and acceptance checklist
 
+## Dedicated phone learning implementation (development only)
+
+The off-by-default learning STT/agent pair and consent controller are implemented
+in the checkout, not deployed. Current full-suite results: **132 unit tests passed,
+4 upstream-engine tests skipped** (136 discovered), and **21 native HA 2026.10.0
+tests passed**. The earlier sections retain stage-specific historical evidence.
+Targeted phone/companion/bridge Ruff, Python AST/JSON parsing and diff checks passed.
+`guided.py` retained the same eight pre-existing Ruff findings as HEAD, with no
+new lint findings; unrelated cleanup was not included.
+
+Native phone tests load the actual entities with synthetic Whisper/provider and
+backend boundaries. They cover notice then separate yes, saved-count completion,
+pause exclusion, other-connection isolation, intercepted/STT-only/typed-marker
+cleanup, disconnect pause, missing/recursive source rejection and retained valid
+source defaults. Unit tests exercise the real encrypted loopback bridge with
+synthetic audio/inference: own-profile restrictions even for administrators,
+ownership/account revocation, stale turns, expiry, capacity, exact-task one-use
+handoffs, disconnect cleanup and uncertain/cancelled requests without replay.
+
+No actual Android microphone, follow-up listening, real Whisper RPC, TTS playback,
+DSP echo handling, HA 2026.10.1 patch acceptance or Echo hardware was tested. Task
+identity is version-dependent and fails closed; global triggers remain unchanged.
+No commit/push, CI submission, version bump, installation, live pairing, pipeline
+change or restart occurred for this phone implementation.
+
+## Standard Companion-app pipeline feasibility (earlier investigation)
+
+Six new native HA 2026.10.0 probes passed through the actual authenticated
+WebSocket pipeline, with synthetic PCM, stubbed DSP and test-only STT/agent
+entities. They verify caller context, exact-task audio handoff, parallel users,
+copied/replayed marker rejection even while another recording is pending, STT-only cleanup and global sentence-trigger
+interception despite local-intent preference being off. Together with the
+existing seven companion contracts, that stage contained 13 native tests.
+
+That probe alone was not a production phone adapter, selectable learning pipeline, stable
+HA task-identity metadata contract, Android microphone/UX acceptance or real Echo
+support. In particular, global triggers can intercept before the learning agent;
+unclaimed recordings must be discarded rather than trained. No production code
+or live configuration changed in that probe stage. The implementation described
+above came later. See [findings and consent decision](PHONE_PIPELINE_FEASIBILITY.md).
+
 ## HA companion coordinator and encrypted bridge (development only)
 
 Local Python 3.14 add-on/unit suite: **111 tests passed, 4 upstream-engine tests

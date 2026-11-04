@@ -153,6 +153,9 @@ class Runtime:
             raise ValueError("Another enrolment is in progress. Please wait")
         learning = LearningSession(data.get("source"))
         voice_id = data.get("id")
+        if (data.get("own_only") is True
+                and (not voice_id or self.store.get(voice_id, actor).get("owner") != actor["id"])):
+            raise Denied("Phone learning is restricted to your assigned profile")
         if voice_id:
             self.store.get(voice_id, actor)
         else:

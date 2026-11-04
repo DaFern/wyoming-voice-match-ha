@@ -3,11 +3,19 @@
     "step": {
       "user": {
         "title": "Pair the learning companion (prototype)",
-        "description": "Development only. Pair with the separate learning-bridge key, not the Codex key. No real speaker adapter is included yet.",
+        "description": "Development only. Pair with the separate learning-bridge key, not the Codex key. Phone learning is opt-in after pairing; no Echo adapter is included.",
         "data": {"url": "Add-on internal HTTP(S) origin", "key": "Learning-bridge key"}
       }
     },
     "error": {"cannot_connect": "Pairing could not be verified. Check the address and learning-bridge key."},
     "abort": {"already_configured": "This learning bridge is already configured."}
+  },
+  "options": {
+    "step": {"init": {
+      "title": "Experimental phone learning",
+      "description": "Off by default. Choose your ordinary Wyoming Whisper engine, NOT Voice Match. It processes speech to recognise yes, pause and status; phrase wording is not checked. Use the dedicated learning STT and learning agent together in a separate assistant. Spoken consent is limited to your own assigned profile. Global sentence triggers may intercept; intercepted recordings are discarded. Native task binding is experimental and requires version testing. No accountless Echo support.",
+      "data": {"phone_test_enabled": "Enable experimental phone learning", "control_stt_engine": "Ordinary Wyoming Whisper STT"}
+    }},
+    "error": {"invalid_stt_source": "Select an existing ordinary Wyoming Whisper STT engine, not the learning engine."}
   }
 }

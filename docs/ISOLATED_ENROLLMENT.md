@@ -1,6 +1,7 @@
 # Isolated enrolment transport — development prototype
 
-**Not deployed, not a selectable Assist pipeline, not an Echo connector.** The
+**Not deployed and not an Echo connector.** The development companion now has an
+off-by-default phone learning STT/agent pair; no live pipeline was created. The
 installed 0.3.2 release still has global Wyoming training capture. Do not assume
 these protections exist there. No version, release or live setting was changed.
 
@@ -93,15 +94,17 @@ only the dedicated binary sample route reads the larger body.
 The management page retains profiles, progress, phrases, pause and cleanup. Its
 Start control is disabled with **Learning connector required**; a submitted form
 cannot fall back to ordinary Assist recording. A separate companion coordinator
-and encrypted bridge now exist in the checkout, but no real speaker adapter does.
-There is no browser microphone capture or automatic pipeline switch in this stage.
+and encrypted bridge now exist in the checkout, with an opt-in phone STT/agent
+pair using the normal Assist microphone protocol. No real Echo adapter exists.
+There is no separate browser microphone interface or automatic pipeline switch.
+See [phone implementation, consent and limits](PHONE_PIPELINE_FEASIBILITY.md).
 
 `tests/test_learning_transport.py` contains a simulated authenticated speaker
 client. It uses a local test server, synthetic PCM and stubbed inference; it is
 not an installable HA integration or device driver.
 
-Before exposing a usable learning pipeline, implement and separately approve a
-trusted HA/Echo connector: establish device identity and profile approval,
+Before exposing accountless screenless learning, implement and separately approve
+a trusted Echo connector: establish device identity and profile approval,
 reserve only that device, speak each prompt before opening capture, prevent TTS
 from entering training, handle spoken retry/cancel and consent, protect/expire
 capabilities, and restore the original device pipeline on every exit. Standard

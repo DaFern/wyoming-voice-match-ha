@@ -1,0 +1,111 @@
+"""Opt-in learning STT. Buffer briefly; never train at the unauthorised STT stage."""
+
+import asyncio
+from dataclasses import replace
+
+from homeassistant.components import stt
+from homeassistant.components.websocket_api.connection import (
+    ActiveConnection,
+    current_connection,
+)
+from homeassistant.helpers import chat_session
+
+from . import DOMAIN
+from .phone_flow import MARKER
+
+
+def control_source(hass, entity_id):
+    source = stt.async_get_speech_to_text_entity(hass, entity_id)
+    if (source is None or isinstance(source, PhoneLearningStt)
+            or source.platform is None or source.platform.platform_name != "wyoming"
+            or not any(language in source.supported_languages for language in ("en", "en-GB", "en-US"))):
+        raise ValueError("Select an existing ordinary Wyoming Whisper STT engine")
+    return source
+
+
+async def async_setup_entry(hass, entry, async_add_entities):
+    runtime = hass.data[DOMAIN][entry.entry_id].get("phone")
+    if runtime is not None:
+        async_add_entities([PhoneLearningStt(entry, runtime)])
+
+
+class PhoneLearningStt(stt.SpeechToTextEntity):
+    _attr_has_entity_name = True
+    _attr_name = "Voice Learning (phone prototype)"
+
+    def __init__(self, entry, runtime):
+        self._attr_unique_id = entry.entry_id + "_phone_learning_stt"
+        self.runtime = runtime
+
+    @property
+    def supported_languages(self):
+        return ["en"]
+
+    @property
+    def supported_formats(self):
+        return [stt.AudioFormats.WAV]
+
+    @property
+    def supported_codecs(self):
+        return [stt.AudioCodecs.PCM]
+
+    @property
+    def supported_bit_rates(self):
+        return [stt.AudioBitRates.BITRATE_16]
+
+    @property
+    def supported_sample_rates(self):
+        return [stt.AudioSampleRates.SAMPLERATE_16000]
+
+    @property
+    def supported_channels(self):
+        return [stt.AudioChannels.CHANNEL_MONO]
+
+    @property
+    def audio_processing(self):
+        return control_source(self.hass, self.runtime.source_id).audio_processing
+
+    async def async_process_audio_stream(self, metadata, stream):
+        owner = None
+        audio = bytearray()
+        try:
+            connection = current_connection.get()
+            session = chat_session.current_session.get()
+            if not isinstance(connection, ActiveConnection) or connection.hass is not self.hass or session is None:
+                raise ValueError("An authenticated phone pipeline is required")
+            user = await self.hass.auth.async_get_user(connection.user.id)
+            if user is None or not user.is_active or user.system_generated or not self.check_metadata(metadata):
+                raise ValueError("Phone caller unavailable")
+            self.runtime.watch(connection)
+            owner = self.runtime.frames.reserve(connection, user.id, session)
+            source = control_source(self.hass, self.runtime.source_id)
+            language = next(language for language in ("en", "en-GB", "en-US") if language in source.supported_languages)
+            source_metadata = replace(metadata, language=language)
+            if not source.check_metadata(source_metadata):
+                raise ValueError("Whisper does not support the recording format")
+            async with asyncio.timeout(45):
+                async for chunk in stream:
+                    if not isinstance(chunk, bytes) or len(audio) + len(chunk) > 320000:
+                        raise ValueError("Recording exceeds ten seconds")
+                    audio.extend(chunk)
+                if not audio or len(audio) % 2:
+                    raise ValueError("Unsupported PCM recording")
+                clip = bytes(audio)
+                async def replay():
+                    yield clip
+                result = await source.async_process_audio_stream(source_metadata, replay())
+            if (result.result != stt.SpeechResultState.SUCCESS or not isinstance(result.text, str)
+                    or not result.text.strip() or len(result.text) > 5000):
+                raise ValueError("Control transcription unavailable")
+            self.runtime.frames.put(owner, clip, result.text)
+            return stt.SpeechResult(MARKER, stt.SpeechResultState.SUCCESS)
+        except asyncio.CancelledError:
+            if owner is not None:
+                self.runtime.frames.discard(owner)
+            raise
+        except Exception:  # noqa: BLE001 - Do not leak audio, peer errors or credentials into pipeline logs.
+            if owner is not None:
+                self.runtime.frames.discard(owner)
+            return stt.SpeechResult(None, stt.SpeechResultState.ERROR)
+        finally:
+            audio.clear()
