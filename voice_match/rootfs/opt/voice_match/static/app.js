@@ -3,6 +3,8 @@ let state = null;
 let editing = null;
 let busy = false;
 let preferencesId = null;
+let learningKeyTimer = null;
+let learningKeyEpoch = 0;
 const $ = (id) => document.getElementById(id);
 const message = (text) => { $("message").textContent = text; };
 
@@ -18,6 +20,83 @@ function button(parent, text, action) {
   element.addEventListener("click", action);
   parent.append(element);
   return element;
+}
+
+function clearLearningKey() {
+  learningKeyEpoch += 1;
+  clearTimeout(learningKeyTimer);
+  learningKeyTimer = null;
+  $("learning-pairing-key").value = "";
+  $("learning-key-result").hidden = true;
+  $("copy-learning-pairing").disabled = true;
+}
+
+function renderLearningPairing() {
+  const admin = Boolean(state?.user.admin);
+  const paired = Boolean(state?.learning_bridge?.paired);
+  $("learning-bridge").hidden = !admin;
+  $("learning-bridge-status").textContent = !admin ? "" : paired
+    ? "Learning key configured. Companion connection and phone setup are not verified here."
+    : "Learning bridge disabled. Create a key to pair the companion.";
+  $("new-learning-pairing").disabled = !admin || busy || Boolean(state?.learning);
+  $("disable-learning-pairing").disabled = !admin || busy || Boolean(state?.learning) || !paired;
+  $("copy-learning-pairing").disabled = !admin || busy || !$("learning-pairing-key").value;
+}
+
+async function changeLearningPairing(action) {
+  if (busy || !state?.user.admin || state.learning || document.hidden) return;
+  if (action !== "learning_bridge_rotate" && action !== "learning_bridge_disable") return;
+  if (action === "learning_bridge_disable" && !state.learning_bridge?.paired) return;
+  const warning = action === "learning_bridge_rotate"
+    ? "Create or replace the learning key? Any existing learning companion must be paired again. This key permits account-delegated voice learning. Codex pairing and normal voice matching stay unchanged."
+    : "Disable the learning bridge? Existing learning companions will no longer connect. Codex pairing, saved voices and normal voice matching stay unchanged.";
+  if (!confirm(warning)) return;
+  const userId = state.user.id;
+  clearLearningKey();
+  const epoch = learningKeyEpoch;
+  busy = true;
+  document.querySelectorAll("button").forEach((element) => { element.disabled = true; });
+  let newKey = null;
+  let saved = false;
+  const controller = new AbortController();
+  const deadline = setTimeout(() => controller.abort(), 20000);
+  try {
+    const response = await fetch("api/action", {
+      method: "POST", headers: { "Content-Type": "application/json", "X-Voice-CSRF": state.csrf },
+      body: JSON.stringify({ action, confirm: true }), cache: "no-store", signal: controller.signal,
+    });
+    const value = await response.json();
+    if (!response.ok || value.ok !== true) throw new Error("Pairing outcome unverified");
+    if (action === "learning_bridge_rotate") {
+      if (typeof value.learning_bridge_key !== "string" || !value.learning_bridge_key) {
+        throw new Error("Pairing outcome unverified");
+      }
+      newKey = value.learning_bridge_key;
+    }
+    saved = true;
+  } catch {
+    // Do not render peer error text or retry an uncertain mutation.
+  } finally {
+    await refresh(false, controller.signal); // Recheck account/role within the same deadline.
+    clearTimeout(deadline);
+    busy = false;
+    document.querySelectorAll("button").forEach((element) => { element.disabled = element.id === "start-learning"; });
+    const sameAdmin = state?.user.admin && state.user.id === userId;
+    if (saved && newKey && sameAdmin && state.learning_bridge?.paired
+        && !document.hidden && epoch === learningKeyEpoch) {
+      $("learning-pairing-key").value = newKey;
+      $("learning-key-result").hidden = false;
+      learningKeyTimer = setTimeout(clearLearningKey, 120000);
+      message("Learning key created. Copy it into Voice Match Enrolment, not Codex or a chat.");
+    } else if (sameAdmin) {
+      message(saved && action === "learning_bridge_disable" && !state.learning_bridge?.paired
+        ? "Learning bridge disabled. Codex pairing is unchanged."
+        : "Pairing outcome or key delivery could not be verified. Check the bridge status; no change was retried. If the new key was lost, explicitly create a replacement when ready.");
+    }
+    newKey = null;
+    if (state) renderWizard();
+    renderLearningPairing();
+  }
 }
 
 async function send(data) {
@@ -42,6 +121,7 @@ async function send(data) {
     busy = false;
     document.querySelectorAll("button").forEach((element) => { element.disabled = element.id === "start-learning"; });
     await refresh(false);
+    renderLearningPairing();
   }
 }
 
@@ -136,13 +216,16 @@ function renderProfiles() {
   }
 }
 
-async function refresh(showStatus = true) {
+async function refresh(showStatus = true, signal) {
   try {
-    const response = await fetch("api/state", { cache: "no-store" });
+    const response = await fetch("api/state", { cache: "no-store", signal });
     const value = await response.json();
     if (!response.ok) throw new Error(value.error || "Unable to load voices");
     const previous = state;
     state = value;
+    if (!state.user.admin || !state.learning_bridge?.paired
+        || (previous && previous.user.id !== state.user.id)) clearLearningKey();
+    renderLearningPairing();
     if (previous && (previous.user.id !== state.user.id || (previous.user.admin && !state.user.admin))) editing = null;
     // Rebuild account selection only when account/role data changes, not on
     // every progress update while someone is filling out the form.
@@ -201,6 +284,9 @@ async function refresh(showStatus = true) {
     preferencesId = null;
     $("connector").hidden = true;
     $("pairing-key").value = "";
+    clearLearningKey();
+    $("learning-bridge").hidden = true;
+    $("learning-bridge-status").textContent = "";
     state = null;
     editing = null;
     message(error.message || "Connection lost. Refresh to try again.");
@@ -234,6 +320,23 @@ $("connector-form").addEventListener("submit", (event) => {
   send({ action: "connector_configure", enabled: $("connector-enabled").checked,
     min_similarity: Number($("min-similarity").value), min_margin: Number($("min-margin").value), confirm: true });
 });
+$("new-learning-pairing").addEventListener("click", () => changeLearningPairing("learning_bridge_rotate"));
+$("disable-learning-pairing").addEventListener("click", () => changeLearningPairing("learning_bridge_disable"));
+$("clear-learning-pairing").addEventListener("click", clearLearningKey);
+$("copy-learning-pairing").addEventListener("click", async () => {
+  if (busy || !state?.user.admin || document.hidden || !$("learning-pairing-key").value) return;
+  const epoch = learningKeyEpoch;
+  try {
+    await navigator.clipboard.writeText($("learning-pairing-key").value);
+    if (epoch === learningKeyEpoch) message("Learning key copied. Paste it into Voice Match Enrolment, not a chat. Clear your clipboard after setup.");
+  } catch {
+    if (epoch !== learningKeyEpoch || document.hidden) return;
+    $("learning-pairing-key").select();
+    message("Use your device's Copy command on the selected learning key. Clear your clipboard after setup.");
+  }
+});
+document.addEventListener("visibilitychange", () => { if (document.hidden) clearLearningKey(); });
+window.addEventListener("pagehide", clearLearningKey);
 async function poll() {
   if (!busy) await refresh();
   setTimeout(poll, state?.paused ? 3000 : 10000);

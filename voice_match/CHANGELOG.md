@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.1
+
+- Add an administrator-only Learning companion pairing section with confirmed
+  create/replace and disable actions, plus a masked, copyable learning key.
+  This uses the existing Ingress administrator/CSRF checks and does not change
+  Codex pairing, recognition, saved voices, thresholds or the bridge protocol.
+- Clear the displayed learning key after two minutes, on page hide/leave,
+  account/role change or a failed access check. Existing keys cannot be retrieved
+  from state. No browser storage is used; clear your clipboard after setup.
+- Bound pairing requests to 20 seconds and refuse duplicate clicks or automatic
+  retries after uncertain outcomes. Pairing changes remain blocked during learning.
+- Include instructions for the separate enrolment integration and dedicated phone
+  assistant. Updating from 0.4.0 adds these page controls; it does not configure the
+  companion or start recording. No companion-code update or Core restart is needed
+  just for these controls.
+- Local validation: 135 unit tests passed, 4 upstream-engine tests skipped, and
+  21 native HA tests passed. Real mobile clipboard/Ingress and phone audio
+  acceptance remain unverified; accountless Echo learning remains unavailable.
+
 ## 0.4.0
 
 - Breaking enrolment change: ordinary Wyoming endpoints 10350 and 10352 no longer

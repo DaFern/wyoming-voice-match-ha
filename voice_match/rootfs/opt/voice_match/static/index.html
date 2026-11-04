@@ -69,6 +69,22 @@
         <button type="submit">Save pairing settings</button>
       </form>
     </section>
+    <section id="learning-bridge" hidden>
+      <h2>Learning companion pairing</h2>
+      <p>Administrator setup for the separate Voice Match Enrolment (Prototype) integration. This key allows the trusted companion to delegate voice learning as active Home Assistant accounts. Never share it in a chat, automation or notification. It is not the Codex personalisation key.</p>
+      <p id="learning-bridge-status" role="status" aria-live="polite"></p>
+      <button id="new-learning-pairing" type="button">Create or replace learning key</button>
+      <button id="disable-learning-pairing" type="button">Disable learning bridge</button>
+      <div id="learning-key-result" hidden>
+        <label for="learning-pairing-key">New learning key (copy now; cannot be retrieved later)</label>
+        <input id="learning-pairing-key" type="password" readonly autocomplete="off" spellcheck="false">
+        <button id="copy-learning-pairing" type="button">Copy learning key</button>
+        <button id="clear-learning-pairing" type="button">Clear displayed key</button>
+      </div>
+      <p>The displayed key clears after two minutes or when this page is hidden. Copying puts it on your device's clipboard; clear the clipboard after setup. Returning to this page does not reveal an existing key.</p>
+      <p>In Settings → Devices &amp; services → Add integration, choose Voice Match Enrolment (Prototype). Enter this add-on's internal HTTP origin on port 8099 (not its browser Ingress address) and the learning key. Then enable experimental phone learning in the integration's options and select ordinary Wyoming Whisper, not Voice Match.</p>
+      <p>Create a separate Voice Learning assistant using both learning entities and your usual TTS voice. Keep normal assistants unchanged. Only an existing voice profile uniquely assigned to your signed-in account can be learned, after a spoken notice and a separate yes. Pairing alone does not enable recording. Real phone audio and follow-up listening remain experimental; accountless Echo learning is not available.</p>
+    </section>
     <button id="retry" type="button" hidden>Retry voice engine</button>
   </main>
 </body>

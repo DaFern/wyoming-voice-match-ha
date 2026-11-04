@@ -57,3 +57,12 @@ class FrontendTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("Guided phrase rendering checks passed", result.stdout)
+
+    @unittest.skipUnless(shutil.which("node"), "Node required for pairing UI execution")
+    def test_learning_pairing_controls_privacy_roles_and_uncertain_outcomes(self):
+        result = subprocess.run(
+            [shutil.which("node"), str(Path(__file__).with_name("frontend_learning_pairing.cjs"))],
+            capture_output=True, text=True, timeout=15, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Learning pairing controls checks passed", result.stdout)

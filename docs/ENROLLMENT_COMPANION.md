@@ -64,12 +64,39 @@ exclusion and installed-patch acceptance remain unverified.
 
 ## Pairing trust and protocol
 
-The learning bridge is **disabled by default**. An administrator must explicitly
-confirm `learning_bridge_rotate` through the existing authenticated Ingress
-action API to create/replace its key; `learning_bridge_disable` disables it.
-These are development API controls, not new management-page buttons. Pairing
-changes require learning to be finished or paused. No key was generated on the
-live installation during development.
+The learning bridge is **disabled by default**. Add-on version **0.4.1** adds
+an administrator-only **Learning companion pairing** section to the add-on page.
+These controls are **not included in 0.4.0** and need an add-on update to 0.4.1;
+no companion-code change or Core restart is needed just for
+these page controls. No live key was generated during development.
+
+1. As an administrator, open the add-on's management page and choose **Create or
+   replace learning key**, then confirm. This invokes `learning_bridge_rotate`
+   through the existing authenticated, CSRF-protected Ingress API. Replacing a key
+   invalidates existing learning companions, not Codex pairing.
+2. Copy the new masked key into **Settings → Devices & services → Add integration
+   → Voice Match Enrolment (Prototype)**. Use the add-on's internal HTTP origin on
+   port 8099, not an Ingress URL. Never paste the key into chat or reuse the Codex
+   key. The page does not automatically add an integration or enable recording.
+3. Enable experimental phone learning in the integration's options with ordinary
+   Wyoming Whisper, then create a separate assistant using both learning entities
+   and your normal TTS voice. Keep existing assistants unchanged. Test real phone
+   audio, spoken notice/yes, follow-up listening and pause before full enrolment.
+
+The page shows only whether a key is configured, not proof of a connected
+companion. A key is delivered only in the initiating response and cannot be read
+back from state. Its masked field clears after two minutes, on page hide/leave,
+account change, role loss or a failed access check. No key is put in page storage,
+transcripts, notifications or URLs. Copying explicitly puts it on the device
+clipboard; users must clear that clipboard after setup. Clipboard-denied devices
+can use the selected field's native Copy command.
+
+**Disable learning bridge** invokes `learning_bridge_disable` after confirmation.
+Both server actions require administrator permission and learning to be finished
+or paused. Ordinary recognition, saved voices and Codex pairing remain unchanged.
+UI requests have a 20-second deadline and never automatically retry uncertain
+mutations. If a new key response is lost, inspect status and explicitly replace
+the key when ready; do not assume an older displayed key still works.
 
 The key is returned only by the initiating confirmed POST as
 `learning_bridge_key`, saved in the add-on's private `learning_bridge.json` with

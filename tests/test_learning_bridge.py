@@ -3,6 +3,7 @@
 import asyncio
 import base64
 import importlib.util
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -124,6 +125,73 @@ class BridgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.http.get("/api/learning/bridge/challenge")).status, 404)
         with self.assertRaises(ClientBridgeError):
             await self.bridge.call("hello", None, {})
+
+    async def test_ingress_pairing_buttons_require_admin_csrf_and_confirmation(self):
+        from aiohttp.test_utils import TestClient, TestServer
+        from guided import create_app
+
+        current = {"actor": fixtures.ADMIN}
+        async def identity(request):
+            return current["actor"], self.users
+        client = TestClient(TestServer(create_app(self.runtime, identity)))
+        await client.start_server()
+        codex = dict(self.runtime.connector.config)
+        original = self.runtime.learning_bridge.key
+        try:
+            state = await (await client.get("/api/state")).json()
+            headers = {"X-Voice-CSRF": state["csrf"]}
+            for operation in ("learning_bridge_rotate", "learning_bridge_disable"):
+                data = {"action": operation, "confirm": True}
+                self.assertEqual((await client.post("/api/action", json=data)).status, 403)
+                self.assertEqual((await client.post("/api/action", json=data,
+                    headers={**headers, "Sec-Fetch-Site": "cross-site"})).status, 403)
+                self.assertEqual((await client.post("/api/action", json={"action": operation},
+                    headers=headers)).status, 403)
+                current["actor"] = dict(fixtures.ADMIN, admin=False)
+                self.assertEqual((await client.post("/api/action", json=data, headers=headers)).status, 403)
+                current["actor"] = fixtures.ADMIN
+            self.assertTrue(self.runtime.learning_bridge.key == original)
+            response = await client.post("/api/action", json={"action": "learning_bridge_rotate", "confirm": True},
+                                         headers=headers)
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.headers["Cache-Control"], "no-store")
+            value = await response.json()
+            self.assertTrue(bool(value.get("learning_bridge_key")))
+            self.assertTrue(value["learning_bridge_key"] != original)
+            state = await (await client.get("/api/state")).json()
+            self.assertEqual(state["learning_bridge"], {"paired": True})
+            self.assertNotIn("learning_bridge_key", state)
+            self.assertFalse(value["learning_bridge_key"] in json.dumps(state))
+            self.assertEqual(self.runtime.connector.config, codex)
+            response = await client.post("/api/action", json={"action": "learning_bridge_disable", "confirm": True},
+                                         headers=headers)
+            self.assertEqual(response.status, 200)
+            self.assertEqual(await response.json(), {"ok": True})
+            self.assertIsNone(self.runtime.learning_bridge.key)
+            self.assertEqual(self.runtime.connector.config, codex)
+        finally:
+            await client.close()
+
+    async def test_ingress_pairing_changes_are_blocked_during_learning(self):
+        from aiohttp.test_utils import TestClient, TestServer
+        from guided import create_app
+
+        async def identity(request):
+            return fixtures.ADMIN, self.users
+        client = TestClient(TestServer(create_app(self.runtime, identity)))
+        await client.start_server()
+        await self.begin()
+        original = self.runtime.learning_bridge.key
+        try:
+            state = await (await client.get("/api/state")).json()
+            for operation in ("learning_bridge_rotate", "learning_bridge_disable"):
+                response = await client.post("/api/action", json={"action": operation, "confirm": True},
+                                             headers={"X-Voice-CSRF": state["csrf"]})
+                self.assertEqual(response.status, 400)
+            self.assertTrue(self.runtime.learning_bridge.key == original)
+            self.assertIsNotNone(self.runtime.active)
+        finally:
+            await client.close()
 
     async def test_pairing_revocation_during_role_lookup_prevents_begin(self):
         async def revoke():

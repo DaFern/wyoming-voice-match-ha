@@ -68,6 +68,26 @@ Failures preserve available samples for retry. Keep other speakers/TV away from
 the learning microphone. Voice matching is not identity or permission to perform
 sensitive actions. No enrolled voice means no normal transcription.
 
+## Learning companion pairing controls (0.4.1)
+
+Version 0.4.1 adds an administrator-only **Learning companion pairing**
+section, unavailable in 0.4.0. After updating, create/replace a learning key,
+confirm, and copy it into the separately installed **Voice Match Enrolment
+(Prototype)** integration together with the add-on's internal HTTP origin on port
+8099. This is not the Codex key or the browser's Ingress URL.
+
+Enable experimental phone learning in the integration options with ordinary
+Wyoming Whisper. Create a separate assistant selecting both learning STT and
+learning conversation entities, with your usual TTS. Existing assistants stay
+unchanged. Pairing alone does not start recording or prove phone readiness.
+
+The masked key is shown only after creation, clears after two minutes or when
+the page is hidden, and cannot be retrieved later. Clear your clipboard after
+setup; never paste keys into chats. Replacing/disabling the learning key requires
+confirmation and no active learning session; it does not affect Codex pairing,
+normal matching or saved voices. See [the full pairing guide and experimental
+phone limits](../docs/ENROLLMENT_COMPANION.md#pairing-trust-and-protocol).
+
 ## Existing voices, ownership and deletion
 
 Upgrading does **not** delete old recordings or change existing voiceprints.

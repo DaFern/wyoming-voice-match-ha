@@ -1,5 +1,29 @@
 # Validation and acceptance checklist
 
+## Learning companion pairing page (0.4.1, live acceptance pending)
+
+Local full-suite validation: **135 unit tests passed, 4 upstream-engine tests
+skipped** (139 discovered); **21 native HA 2026.10.0 tests passed**. JavaScript
+syntax and diff checks passed. No live key or biometric recording was used.
+
+The checkout adds separate administrator-only learning key create/replace,
+copy/clear and disable controls, without backend protocol or companion changes.
+The existing Ingress API still enforces current administrator role, confirmation,
+CSRF and no active learning. No live key was generated, and 0.4.0 does not include
+these page controls yet.
+
+`tests/frontend_learning_pairing.cjs` executes the actual handlers with a minimal
+DOM and synthetic responses. It checks confirmation/CSRF, separation from Codex,
+masked-key handling, no key in state or status messages, polling versus expiry,
+page hiding/leaving, account/role changes, failed access, clipboard fallback,
+lost/denied/incomplete responses, request timeout and duplicate-click refusal.
+Uncertain mutations are not retried. HTTP tests independently verify server-side
+administrator/CSRF/confirmation checks, no key in state, no-store responses,
+unchanged Codex settings and blocked pairing changes during learning.
+
+These are not real-browser, Companion clipboard or live Ingress acceptance tests.
+Publication, add-on update and manual pairing remain separate approved steps.
+
 ## Dedicated phone learning implementation (development only)
 
 The off-by-default learning STT/agent pair and consent controller are implemented
