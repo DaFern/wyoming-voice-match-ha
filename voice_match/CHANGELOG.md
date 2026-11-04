@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1
+
+- Fixed the Back button masking the form's native `reset()` method, which caused
+  “reset is not a function” after successful actions and when opening Re-enrol.
+- Added regressions for form-method masking and JavaScript element references.
+- No voiceprint, recording or ownership migration is required for this fix.
+
 ## 0.2.0
 
 - Guided Ingress voice management and an optional sidebar entry for all users.

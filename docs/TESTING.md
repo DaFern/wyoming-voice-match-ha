@@ -1,5 +1,12 @@
 # Validation and acceptance checklist
 
+Version **0.2.1** fixes the user-reported frontend `reset is not a function` error.
+The new form-control regression failed against 0.2.0, then passed after renaming
+the conflicting Back button. Local suite: **52 tests passed, 3 engine tests skipped**;
+JavaScript syntax and diff checks passed. These are static/unit checks, not a
+browser execution test. Container build and confirmation on the user's phone remain
+pending. The fix does not alter existing ownership or biometric files.
+
 Version **0.1.0** built successfully in GitHub Checks at commit `cbbb28d`, including
 dependency and container contract checks. The user then installed it on HAOS and
 reported successful 30-sample enrolment, normal recognition, TV-only rejection

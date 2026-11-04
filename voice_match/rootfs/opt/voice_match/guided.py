@@ -410,9 +410,9 @@ async def service_info(uri):
         LOG.warning("Whisper language discovery failed; using English until the app is restarted")
     attribution = Attribution(name="Wyoming Voice Match", url="https://github.com/jxlarrea/wyoming-voice-match")
     return Info(asr=[AsrProgram(name="voice-match", description="Voice Match", attribution=attribution,
-                               installed=True, version="0.2.0", models=[AsrModel(
+                               installed=True, version="0.2.1", models=[AsrModel(
                                    name="voice-match-proxy", description="Speaker-filtered ASR",
-                                   attribution=attribution, installed=True, version="0.2.0", languages=languages)])])
+                                   attribution=attribution, installed=True, version="0.2.1", languages=languages)])])
 
 
 async def serve(options):

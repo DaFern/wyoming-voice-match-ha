@@ -55,7 +55,7 @@ function renderWizard() {
   $("wizard").hidden = state.paused || (!state.user.admin && own && !editing);
   $("wizard-title").textContent = editing ? `Learn ${editing.name}'s voice` : "Add a voice";
   $("name").disabled = Boolean(editing);
-  $("reset").hidden = !editing;
+  $("back-to-add").hidden = !editing;
   $("owner-field").hidden = !state.user.admin || Boolean(editing);
   $("progress").hidden = !state.job;
   if (state.job) {
@@ -174,7 +174,7 @@ $("enrol").addEventListener("submit", (event) => {
 });
 $("cancel").addEventListener("click", () => send({ action: "cancel" }));
 $("retry").addEventListener("click", () => send({ action: "retry_engine" }));
-$("reset").addEventListener("click", () => { editing = null; renderWizard(); });
+$("back-to-add").addEventListener("click", () => { editing = null; renderWizard(); });
 async function poll() {
   if (!busy) await refresh();
   setTimeout(poll, state?.paused ? 3000 : 10000);
