@@ -56,19 +56,22 @@ recreated on upgrade; the external port and discovery names remain the same.
    learning is active. An unauthenticated Wyoming microphone stream cannot prove
    which account is speaking; account ownership protects management operations,
    not the physical source of a recording. Keep other microphones/users inactive.
-4. In Assist, record about 30 varied five-second samples. Finish each listening
-   session and watch the page's progress count. Use the same microphone you will
-   normally use; vary natural phrases, distance and normal speaking volume. Avoid
-   TV or other people during learning. Audio must be mono 16 kHz/16-bit PCM; clips
-   under one second or over ten seconds are not saved.
-5. The page shows processing when enough samples have arrived. The first model
+4. In Assist, read the displayed phrase naturally for about five seconds using
+   your usual microphone and normal speaking distance. Finish each listening
+   session and wait for the page's saved count before recording again. There are
+   30 varied phrases; only saved samples advance the phrase, so rejected audio
+   keeps the same guidance. Exact words are **not checked**. Avoid TV or other
+   people during learning. Audio must be mono 16 kHz/16-bit PCM; clips under one
+   second or over ten seconds are not saved. Existing 1–100 sample targets remain
+   supported; targets above 30 cycle through the phrases.
+5. The page shows **Processing voiceprint** after the final saved sample. The first model
    download requires internet access and can take several minutes. Audio remains
    local. After a validated voiceprint is installed, sample/temporary files for
    that person are deleted and normal matching starts again automatically. No
    mode change, app restart or Core restart is needed for this workflow.
 
-**Pause learning** restores matching and retains partial samples to resume or
-delete explicitly. Recording also pauses after a 15-minute session or an app
+**Pause learning** restores matching and retains partial samples to resume at the
+phrase selected by the saved count, or delete explicitly. Recording also pauses after a 15-minute session or an app
 restart; it never silently resumes without fresh consent. Generation can take up
 to ten minutes and cannot be paused during installation. On errors, pause/resume
 to retry, or ask an administrator; the old voiceprint remains until a valid

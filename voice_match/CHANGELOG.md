@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.2
+
+- Display 30 varied reading phrases during enrolment, advancing only when a sample
+  saves. Rejected audio keeps the phrase; resumed sessions follow the saved count.
+- Show a separate voiceprint-processing message after the final saved sample.
+- Recommend the usual Assist microphone and normal speaking distance. Exact words
+  are not checked; audio validation, consent, ownership, cleanup and validated
+  voiceprint replacement remain unchanged. Existing 1–100 sample targets work.
+- Local regression checks passed; real mobile/Assist acceptance and recognition
+  improvement after re-enrolment remain unverified. No threshold changes.
+
 ## 0.3.1
 
 - Added privacy-preserving personalisation diagnostics: match/fallback reasons,

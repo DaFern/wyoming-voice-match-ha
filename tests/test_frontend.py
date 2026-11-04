@@ -3,6 +3,8 @@
 from html.parser import HTMLParser
 from pathlib import Path
 import re
+import shutil
+import subprocess
 import unittest
 
 STATIC = Path(__file__).resolve().parents[1] / "voice_match/rootfs/opt/voice_match/static"
@@ -46,3 +48,12 @@ class FrontendTests(unittest.TestCase):
     def test_javascript_static_id_references_exist(self):
         references = set(re.findall(r'\$\("([^"]+)"\)', (STATIC / "app.js").read_text()))
         self.assertEqual(references - self.page().ids, set())
+
+    @unittest.skipUnless(shutil.which("node"), "Node required for renderer execution")
+    def test_phrase_renderer_progress_retry_resume_completion_and_safe_text(self):
+        result = subprocess.run(
+            [shutil.which("node"), str(Path(__file__).with_name("frontend_prompts.cjs"))],
+            capture_output=True, text=True, timeout=15,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Guided phrase rendering checks passed", result.stdout)

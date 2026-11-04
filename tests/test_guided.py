@@ -208,12 +208,37 @@ class GuidedTests(unittest.IsolatedAsyncioTestCase):
         await self.begin()
         self.assertEqual(self.runtime.active.recording.count, 1)
 
+    async def test_phrase_advances_only_for_saved_audio_and_resumes_after_restart(self):
+        from enrollment_prompts import PHRASES
+        from guided import Runtime
+        await self.begin()
+        job = self.runtime.active
+        self.assertEqual(self.runtime.view(ALICE)["job"]["prompt"], PHRASES[0])
+        await self.runtime.ingest(job, b"\x00" * 16000)
+        self.assertEqual(self.runtime.view(ALICE)["job"]["prompt"], PHRASES[0])
+        self.assertEqual(job.recording.count, 0)
+        self.assertTrue(job.notice)
+        await self.runtime.ingest(job, b"\x00" * 32000)
+        self.assertEqual(self.runtime.view(ALICE)["job"]["prompt"], PHRASES[1])
+        self.assertNotIn("job", self.runtime.view(BOB))
+        self.assertEqual(self.runtime.view(ADMIN)["job"]["prompt"], PHRASES[1])
+        await self.runtime.action(ALICE, {"action": "cancel"}, USERS)
+        self.assertNotIn("job", self.runtime.view(ALICE))
+        self.runtime = Runtime(self.root, OPTIONS, FakeWorker())
+        self.assertIsNone(self.runtime.active)
+        await self.begin()
+        self.assertEqual(self.runtime.active.recording.count, 1)
+        self.assertEqual(self.runtime.view(ALICE)["job"]["prompt"], PHRASES[1])
+
     async def test_success_cleans_samples_after_validation(self):
         import numpy as np
         await self.begin()
         job = self.runtime.active
         process = AsyncMock()
         async def generate():
+            view = self.runtime.view(ALICE)["job"]
+            self.assertTrue(view["processing"])
+            self.assertIsNone(view["prompt"])
             np.save(job.recording.directory / "generated" / f"{self.voice_id}.npy", np.ones(192))
             return 0
         process.wait.side_effect = generate

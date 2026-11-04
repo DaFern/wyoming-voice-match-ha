@@ -25,8 +25,11 @@
     <section id="progress" hidden>
       <h2>Learning a voice</h2><p id="count" aria-live="polite"></p>
       <progress id="bar" max="30" value="0"></progress>
-      <p>In Assist, choose your Voice Match test assistant. Tap the microphone, speak naturally for about five seconds, then finish recording.</p>
-      <p>Vary your words, distance and normal speaking volume. Only the consenting speaker should use this assistant while learning is active.</p>
+      <div id="enrollment-prompt" role="status" aria-live="polite" aria-atomic="true" hidden>
+        <p id="phrase-number"></p><p id="enrollment-phrase"></p>
+      </div>
+      <p>In Assist, choose your Voice Match test assistant. Use your usual microphone and normal speaking distance. Tap the microphone, read the displayed phrase naturally for about five seconds, then finish recording.</p>
+      <p>Wait for the sample to save before recording again. If rejected, try the same phrase again. Exact words are not checked; existing audio format and duration checks still apply. Only the consenting speaker should use this assistant while learning is active.</p>
       <p id="job-error" role="alert"></p>
       <button id="cancel" type="button">Pause learning</button>
       <p>Pausing keeps partial samples for you to resume or delete later. Normal voice matching resumes automatically.</p>

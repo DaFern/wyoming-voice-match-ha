@@ -1,5 +1,27 @@
 # Validation and acceptance checklist
 
+## Guided enrolment phrases (0.3.2, not deployed)
+
+Local Python 3.14 validation: **71 tests passed, 4 upstream-engine tests
+skipped** (75 discovered). JavaScript syntax and `git diff --check` passed.
+The phrase-module tests failed before implementation because the module did not
+exist. New coverage checks 30 distinct 12–18-word phrases, saved-count selection,
+completion, existing 1–100 targets, rejection without advancement, authorised
+visibility, pause/restart/resume, and no next prompt during final generation.
+
+A Node minimal-DOM harness executes the actual management renderer and checks
+literal text, retry, advancement, resume, clearing on errors/absent jobs, stable
+phrase updates during polling, and separate saving/voiceprint-processing labels.
+This is not a real browser or screen-reader test. An initial harness failure was
+fixed by modelling the DOM's Boolean `hidden` property coercion correctly.
+
+Container build, visual/mobile accessibility, real Assist recordings and improved
+recognition after re-enrolment remain unverified. Exact phrase wording is not
+validated; audio acceptance, thresholds, consent, ownership, cleanup and atomic
+voiceprint replacement are unchanged. Version 0.3.2 packages this feature for
+separately approved installation. These local results do not establish CI success,
+deployment, re-enrolment, live setting changes or restart.
+
 ## Minimal request diagnostics (development)
 
 Local Python 3.14 diagnostic validation: **65 tests passed, 4 upstream-engine

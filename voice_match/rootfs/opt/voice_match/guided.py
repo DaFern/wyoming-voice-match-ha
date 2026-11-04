@@ -22,6 +22,7 @@ from wyoming.info import AsrModel, AsrProgram, Attribution, Describe, Info
 from wyoming.server import AsyncEventHandler, AsyncServer
 
 from enrollment import Recording
+from enrollment_prompts import prompt_for_sample
 from healthcheck import check
 from identity import actor_from_users, identify
 from voices import Denied, VoiceStore, validate_voiceprint
@@ -130,8 +131,11 @@ class Runtime:
             result["connector"] = self.connector.view()
         job = self.active
         if job and (actor["admin"] or job.actor_id == actor["id"]):
-            result["job"] = {"id": job.voice_id, "count": job.recording.count,
-                             "target": job.recording.options["enrollment_samples"],
+            count = job.recording.count
+            target = job.recording.options["enrollment_samples"]
+            result["job"] = {"id": job.voice_id, "count": count,
+                             "target": target,
+                             "prompt": None if job.error else prompt_for_sample(count, target),
                              "processing": job.processing, "error": job.error, "notice": job.notice}
         return result
 

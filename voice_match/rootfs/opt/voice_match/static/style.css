@@ -1,4 +1,7 @@
 :root { color-scheme: light dark; font: 16px system-ui, sans-serif; }
+#enrollment-prompt { border-inline-start: 4px solid Highlight; padding: 0 16px; margin: 18px 0; }
+#phrase-number { font-weight: 600; }
+#enrollment-phrase { font-size: 1.25rem; overflow-wrap: anywhere; }
 body { margin: 0; background: Canvas; color: CanvasText; }
 main { max-width: 760px; padding: 20px; margin: auto; }
 header p { margin-top: 0; }

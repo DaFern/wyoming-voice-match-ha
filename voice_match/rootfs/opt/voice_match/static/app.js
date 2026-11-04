@@ -53,6 +53,16 @@ function edit(profile) {
   $("wizard").scrollIntoView({ behavior: "smooth" });
 }
 
+function renderPrompt(job) {
+  const phrase = job && !job.error && job.count < job.target && typeof job.prompt === "string"
+    ? job.prompt : "";
+  const label = phrase ? `Sample ${job.count + 1} of ${job.target} — read aloud:` : "";
+  // Polling must not repeatedly announce unchanged guidance to screen readers.
+  if ($("phrase-number").textContent !== label) $("phrase-number").textContent = label;
+  if ($("enrollment-phrase").textContent !== phrase) $("enrollment-phrase").textContent = phrase;
+  $("enrollment-prompt").hidden = !phrase;
+}
+
 function renderWizard() {
   const own = state.profiles.find((profile) => profile.owner === state.user.id);
   $("wizard").hidden = state.paused || (!state.user.admin && own && !editing);
@@ -61,10 +71,12 @@ function renderWizard() {
   $("back-to-add").hidden = !editing;
   $("owner-field").hidden = !state.user.admin || Boolean(editing);
   $("progress").hidden = !state.job;
+  renderPrompt(state.job);
   if (state.job) {
     const job = state.job;
     $("count").textContent = job.processing
-      ? `Processing sample ${job.count} of ${job.target}… Please wait.`
+      ? job.count >= job.target ? "Processing voiceprint… Please wait."
+        : `Saving sample ${job.count + 1} of ${job.target}… Please wait.`
       : `${job.count} of ${job.target} samples saved`;
     $("bar").max = job.target;
     $("bar").value = job.count;
@@ -181,6 +193,7 @@ async function refresh(showStatus = true) {
     $("profiles").replaceChildren();
     $("wizard").hidden = true;
     $("progress").hidden = true;
+    renderPrompt(null);
     $("retry").hidden = true;
     $("preferences").hidden = true;
     $("personal-instructions").value = "";
