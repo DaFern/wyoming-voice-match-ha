@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.4.0
+
+- Breaking enrolment change: ordinary Wyoming endpoints 10350 and 10352 no longer
+  supply training audio. The management Start control requires a trusted learning
+  connector; updating the add-on alone does not enable phone enrolment.
+- Add a disabled-by-default encrypted learning bridge with a pairing key separate
+  from Codex, expiring account/source/session capabilities and one-use recording
+  permits. Existing recognition, preferences, thresholds and voiceprints remain.
+- The separate experimental Voice Match Enrolment custom integration provides an
+  opt-in phone learning STT/agent pair. Install it separately, restart Home
+  Assistant, pair the bridge, select ordinary Wyoming Whisper and create a
+  dedicated assistant using both learning entities. Existing assistants need not
+  change. No Codex, Piper, Companion app or Core upgrade is required on HA 2026.10.
+- Phone learning gives a spoken biometric notice and requires a separate yes.
+  It targets only the signed-in account's uniquely assigned existing profile,
+  including for administrators. Bounded one-use RAM handoffs bind recordings to
+  the exact native task, connection, account and chat; control turns are not samples.
+- Preserve guided phrases, saved-count advancement, rejected-sample retry, freshly
+  consented resume, validated voiceprint replacement and recording cleanup. Review
+  any partial recordings collected under the previous global-capture design;
+  this update does not silently remove or certify them.
+- Experimental: real Android microphone, follow-up listening, Whisper RPC and TTS
+  echo exclusion remain unverified. Native task binding is version-dependent;
+  global sentence triggers may intercept, in which case audio is discarded.
+  Accountless Echo admission/capture is not implemented. Voice matching is not
+  authentication. See the companion and phone pipeline guides before enabling.
+- Local validation: 132 unit tests passed, 4 upstream-engine tests skipped, and
+  21 native HA 2026.10.0 tests passed using synthetic audio and stubbed inference.
+  These results do not establish physical-device acceptance or a deployed release.
+
 ## 0.3.2
 
 - Display 30 varied reading phrases during enrolment, advancing only when a sample
