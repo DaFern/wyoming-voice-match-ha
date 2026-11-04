@@ -1,0 +1,19 @@
+:root { color-scheme: light dark; font: 16px system-ui, sans-serif; }
+body { margin: 0; background: Canvas; color: CanvasText; }
+main { max-width: 760px; padding: 20px; margin: auto; }
+header p { margin-top: 0; }
+section { border: 1px solid GrayText; border-radius: 12px; padding: 18px; margin: 18px 0; }
+h1 { margin-bottom: 8px; } h2 { font-size: 1.25rem; margin-top: 0; }
+p { line-height: 1.5; }
+label { display: block; margin: 14px 0 6px; }
+input:not([type="checkbox"]), select { box-sizing: border-box; width: 100%; padding: 10px; font: inherit; }
+input[type="checkbox"] { width: 20px; height: 20px; flex-shrink: 0; }
+.check { display: flex; align-items: flex-start; gap: 10px; line-height: 1.45; }
+button { font: inherit; padding: 11px 15px; margin: 8px 8px 0 0; cursor: pointer; min-height: 44px; }
+button:disabled { cursor: wait; opacity: .6; }
+.voice { border-bottom: 1px solid GrayText; padding: 12px 0; }
+.voice:last-child { border-bottom: 0; }
+.voice strong { display: block; } progress { width: 100%; height: 24px; }
+#message { border-inline-start: 4px solid #03a9f4; padding: 10px; }
+#job-error { color: light-dark(#a00000, #ffadad); }
+[hidden] { display: none !important; }

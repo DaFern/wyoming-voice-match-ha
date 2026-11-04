@@ -6,3 +6,4 @@ numpy==1.26.4
 requests==2.32.5
 huggingface_hub==0.26.5
 soundfile==0.13.1
+aiohttp==3.13.2

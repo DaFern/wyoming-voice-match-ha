@@ -21,13 +21,14 @@ MAX_BYTES = 16000 * 2 * 10
 class Recording:
     """Persistent sessions prevent silent re-recording after a restart."""
 
-    def __init__(self, options, root=Path("/data")):
+    def __init__(self, options, root=Path("/data"), candidate_validator=None):
         self.options = options
         self.root = root
         self.directory = root / "enrollment" / options["enrollment_speaker"] / options["enrollment_session"]
         self.directory.mkdir(parents=True, mode=0o700, exist_ok=True)
         self.complete = self.directory / "COMPLETE"
         self.lock = asyncio.Lock()
+        self.candidate_validator = candidate_validator
 
     @property
     def count(self):
@@ -70,16 +71,47 @@ class Recording:
                     "--enrollment-dir", str(staging),
                     "--voiceprints-dir", str(generated),
                     "--model-dir", str(self.root / "models"), "--device", "cpu",
+                    env={key: value for key, value in os.environ.items()
+                         if key not in {"SUPERVISOR_TOKEN", "HASSIO_TOKEN"}},
                 )
-                result = await process.wait()
+                try:
+                    result = await asyncio.wait_for(process.wait(), 600)
+                except (asyncio.CancelledError, asyncio.TimeoutError):
+                    process.terminate()
+                    try:
+                        await asyncio.wait_for(process.wait(), 10)
+                    except asyncio.TimeoutError:
+                        process.kill()
+                        await process.wait()
+                    raise
                 if result != 0 or not candidate.is_file():
                     _LOGGER.error("Enrolment failed; inspect logs, then restart to retry")
                     return
+                if self.candidate_validator is not None:
+                    self.candidate_validator(candidate)
+                with candidate.open("rb") as saved:
+                    os.fsync(saved.fileno())
                 voiceprints = self.root / "voiceprints"
                 voiceprints.mkdir(mode=0o700, exist_ok=True)
                 candidate.replace(voiceprints / candidate.name)
-                self.complete.write_text("Enrolment completed. Switch mode to proxy.\n")
-                _LOGGER.info("Enrolment complete. Set mode=proxy and restart the app")
+                descriptor = os.open(voiceprints, os.O_RDONLY | os.O_DIRECTORY)
+                try:
+                    os.fsync(descriptor)
+                finally:
+                    os.close(descriptor)
+                with self.complete.open("w") as completed:
+                    completed.write("Enrolment completed.\n")
+                    completed.flush()
+                    os.fsync(completed.fileno())
+                descriptor = os.open(self.directory, os.O_RDONLY | os.O_DIRECTORY)
+                try:
+                    os.fsync(descriptor)
+                finally:
+                    os.close(descriptor)
+                if self.candidate_validator is None:
+                    _LOGGER.info("Enrolment complete. Set mode=proxy and restart the app")
+                else:
+                    _LOGGER.info("Voiceprint validated and installed; guided setup is finishing")
 
 
 class Handler(AsyncEventHandler):

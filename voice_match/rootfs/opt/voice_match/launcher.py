@@ -33,14 +33,11 @@ def validate(options):
         raise ValueError("extraction_threshold must not exceed verify_threshold")
     if type(options.get("debug")) is not bool:
         raise ValueError("debug must be a boolean")
-    if options["mode"] == "enroll":
-        if options.get("enrollment_consent") is not True:
-            raise ValueError("Explicit speaker consent is required before recording")
-        identifier(options.get("enrollment_speaker"))
-        identifier(options.get("enrollment_session"))
-        samples = options.get("enrollment_samples")
-        if type(samples) is not int or not 1 <= samples <= 100:
-            raise ValueError("enrollment_samples must be 1–100")
+    # Old speaker/session/consent options are inert. The authenticated wizard
+    # supplies fresh consent and generated identifiers for each enrolment.
+    samples = options.get("enrollment_samples")
+    if type(samples) is not int or not 1 <= samples <= 100:
+        raise ValueError("enrollment_samples must be 1–100")
     return options
 
 
@@ -75,16 +72,13 @@ def main():
     # Script entrypoints do not otherwise place /app on Python's import path.
     sys.path.insert(0, "/app")
     sys.argv = ["voice-match"]
+    # Legacy options remain accepted for upgrades but never silently enable
+    # recording. Consent and ownership are established through the guided UI.
     if options["mode"] == "enroll":
-        from enrollment import serve
-        import asyncio
-        asyncio.run(serve(options))
-    else:
-        if not any(Path("/data/voiceprints").glob("*.npy")):
-            logging.error("No enrolled voices. Set mode=enroll and obtain speaker consent first")
-            raise ValueError("No enrolled voices. Set mode=enroll and obtain speaker consent first")
-        from proxy import run
-        run()
+        logging.warning("Legacy enrolment mode is inactive. Use Open Web UI to enrol or resume")
+    from guided import serve
+    import asyncio
+    asyncio.run(serve(options))
 
 
 if __name__ == "__main__":

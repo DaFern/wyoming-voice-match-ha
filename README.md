@@ -20,9 +20,17 @@ See [installation, enrolment and rollback](voice_match/DOCS.md),
 [validation status and test plan](docs/TESTING.md), and
 [upstream packaging notes](docs/UPSTREAM.md).
 
-**Status:** initial implementation, not yet built or demonstrated on HAOS. Android
-Companion tap-to-talk, filtering accuracy, real resource usage and recovery remain
-unverified. Do not switch your working pipeline until testing a separate one.
+**Manage voices:** an Ingress page and optional **Voice Match** sidebar entry provide
+consent, live learning progress, multiple account-owned voices and recording cleanup.
+Normal users manage their own voice; HA administrators manage all profiles. This
+uses Core API permission for automatic account/administrator verification; the
+credential never reaches the browser or inference processes.
+
+**Status:** version 0.1.0 built successfully in CI and was tested by the user on HAOS
+with enrolment, normal speech, TV-only rejection and speech with TV playing. These
+are initial observations, not an accuracy guarantee. The new 0.2.0 management UI
+and runtime have not yet been deployed or manually verified on HAOS. Always keep
+the original Whisper pipeline as a fallback.
 
 Speaker-aware agent personalisation (issue #1 Stage 2) is not implemented. This
 project does not change Codex Multi-Assist, Piper, personalities or AI Task.

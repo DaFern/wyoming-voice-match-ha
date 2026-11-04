@@ -38,19 +38,18 @@ class OptionsTests(unittest.TestCase):
     def test_valid_options(self):
         self.assertEqual(launcher.validate(options())["mode"], "enroll")
 
-    def test_consent_must_be_explicit_boolean(self):
+    def test_legacy_consent_does_not_gate_ui_startup(self):
         for consent in (False, "true", 1, None):
-            with self.subTest(consent=consent), self.assertRaises(ValueError):
+            with self.subTest(consent=consent):
                 launcher.validate(options(enrollment_consent=consent))
 
     def test_identifiers_reject_paths_and_shell_fragments(self):
         for value in ("../person", "/root", "person/name", ".", "name;cmd", "", "A", "a" * 41):
             with self.subTest(value=value), self.assertRaises(ValueError):
-                launcher.validate(options(enrollment_speaker=value))
+                launcher.identifier(value)
 
-    def test_session_rejects_paths(self):
-        with self.assertRaises(ValueError):
-            launcher.validate(options(enrollment_session="../first"))
+    def test_legacy_names_do_not_block_ui_startup(self):
+        launcher.validate(options(enrollment_speaker="Daniel", enrollment_session="../first"))
 
     def test_invalid_endpoints(self):
         for uri in ("http://host:10300", "tcp://host", "tcp://user:secret@host:10300",
@@ -92,7 +91,9 @@ class OptionsTests(unittest.TestCase):
         config = (ROOT / "voice_match/config.yaml").read_text()
         self.assertIn("  10350/tcp:\n", config)
         self.assertNotIn("host_network: true", config)
-        self.assertNotIn("homeassistant_api: true", config)
+        self.assertIn("homeassistant_api: true", config)
+        self.assertIn("ingress: true", config)
+        self.assertIn("panel_admin: false", config)
 
 
 @unittest.skipUnless(HAS_WYOMING, "Install wyoming==1.8.0 to run protocol tests")

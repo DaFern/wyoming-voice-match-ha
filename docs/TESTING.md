@@ -1,16 +1,26 @@
 # Validation and acceptance checklist
 
-Initial status: **not built, not deployed, not tested with a real microphone**.
-Do not close issue #1 based solely on static/unit checks.
+Version **0.1.0** built successfully in GitHub Checks at commit `cbbb28d`, including
+dependency and container contract checks. The user then installed it on HAOS and
+reported successful 30-sample enrolment, normal recognition, TV-only rejection
+and a question answered without TV dialogue being transcribed. These are initial
+user observations, not a measured accuracy/resource benchmark.
 
-Local implementation validation (2026-11-04): **22 tests passed, 3 engine-contract
-tests skipped** because the upstream engine/runtime is not installed here. The
-Wyoming 1.8.0 wheel was hash-verified against PyPI metadata and loaded from an
-isolated test cache, without installing packages into HA or the app environment.
-One passing test used actual loopback Wyoming discovery, audio events and an empty
-transcript. Inference/voiceprint generation were stubbed. Docker is unavailable in
-this development container, so image/dependency build, Supervisor acceptance,
-container-only contract tests and all real voice scenarios remain pending.
+Version **0.2.0** guided-management changes are **not yet deployed or verified on
+HAOS**. Local validation on 2026-11-04: **50 tests passed, 3 engine-contract tests
+skipped** (the upstream engine/runtime is not installed here). This includes
+ownership denial, role demotion, missing identity, Ingress peer validation, CSRF,
+legacy ownership migration, recording hard-link cleanup, validated voiceprint
+installation, failure preservation, guided recording/routing and stale-result
+suppression. Local HTTP and Wyoming tests use loopback, stubbed identities and
+inference, never a production token or real recording.
+
+Local test dependencies are in an isolated cache, not installed into Home
+Assistant or the app. Python 3.13 tests used NumPy 2.2.6; the image/CI use Python
+3.11 and NumPy 1.26.4. JavaScript syntax checks passed. Actual browser/mobile
+rendering, real Ingress headers, Core role lookup and the new container build
+remain pending. No browser automation or Docker is available here. Do not close
+issue #1 based solely on these tests.
 
 Run dependency-light checks from the repository root:
 
@@ -19,9 +29,14 @@ python3 -m unittest discover -s tests -v
 git diff --check
 ```
 
-Protocol tests require `wyoming==1.8.0` (install in a disposable development
-environment). They skip explicitly when it is missing. They exercise recording
-and the wrapper with stubbed inference, not the actual SpeechBrain model.
+Install `wyoming==1.8.0`, `aiohttp==3.13.2` and `numpy==1.26.4` in a disposable
+Python 3.11 development environment for protocol/UI tests. Missing optional
+dependencies cause explicit skips. Tests use stubbed inference, not the actual
+SpeechBrain model. The browser JavaScript can be syntax-checked with:
+
+```sh
+node --check voice_match/rootfs/opt/voice_match/static/app.js
+```
 
 On a development machine with Docker (not via HA's internal Docker socket):
 
@@ -35,7 +50,7 @@ scanner. The GitHub workflow builds amd64 and runs tests but does not publish an
 image. Review its results after an explicitly approved push. Local YAML parsing
 does not prove Supervisor manifest acceptance.
 
-## Required manual HAOS/Android tests — all pending
+## Required manual HAOS/Android tests — repeat for 0.2.0
 
 Use a separate pipeline and a consenting adult, not production security actions.
 Record hardware, versions, settings and measured results rather than claiming
@@ -44,10 +59,10 @@ generic speaker accuracy. Never post actual samples/voiceprints in public issues
 | Scenario | Record / expected observation |
 | --- | --- |
 | Fresh store install | Manifest accepted; CPU build resolves dependencies |
-| Empty enrolment | Proxy fails closed; enrol mode accepts supported PCM |
+| Empty enrolment | No transcription; management/setup page stays available |
 | Model first download | Time/disk use; understandable failure/retry when offline |
 | Record 30 samples | Progress, no command execution; model/voiceprint generated |
-| Restart during/after enrolment | Resume; completed session does not record again |
+| Restart during/after enrolment | Capture paused; explicit consent to resume; completed session does not repeat |
 | Quiet/normal/distant speech | False rejects and latency with 1s, 3s and longer clips |
 | TV alone | False accepts/transcripts over repeated tests |
 | Speaker plus TV / overlap | Residual TV words, lost speaker words; no guaranteed separation |
@@ -60,6 +75,14 @@ generic speaker accuracy. Never post actual samples/voiceprints in public issues
 | Re-enrol with new session | Existing voiceprint replaced only after successful processing |
 | Resource use | Idle/startup/inference CPU/RAM/disk alongside Core and Whisper |
 | Rollback | Original STT works after selecting it and stopping the proxy |
+| Real Ingress and sidebar | Admin/non-admin can navigate; missing headers denied; no public web port |
+| HA role checks | Owner/admin correctly identified; inactive/system users denied; Core unavailable fails closed |
+| Multiple HA accounts | Ordinary users cannot see, replace, delete or claim each other's/legacy voices |
+| Legacy migration | Original voice still matches; administrator explicitly assigns ownership; no automatic cleanup |
+| Successful wizard session | Samples and temporary hard links removed, voiceprint retained; no manual restart |
+| Pause/error/timeout | No unconsented recording after pause/restart; partial samples explicitly resumable/deletable |
+| Delete and re-enrol | Confirmation, no stale cached recognition, other profiles/models/backups untouched |
+| Real phones and desktops | Layout, accessible progress, consent, focus and relative Ingress URLs work |
 
 The listening/VAD boundary is before this proxy. Suppression in the final transcript
 does not establish that Android will stop listening sooner. Published results must

@@ -25,75 +25,102 @@ other security-sensitive operations. Recorded/replayed voices can fool matching.
    actual hostname/port. `localhost` would mean this proxy's container, not Whisper.
 4. Keep the host port disabled. The internal Wyoming service is unencrypted and
    unauthenticated; it must never be published to the internet. No host networking,
-   Core API permission, Supervisor API permission or host folder mapping is used.
+   Supervisor management permission or host folder mapping is used.
+5. Version 0.2.0 requests **Home Assistant Core API permission** for automatic
+   user/administrator checks. This grants broad Core access, although this app
+   uses it only to read account roles. Approve the upgrade permission only if you
+   trust this code. The credential is not sent to the browser or model processes.
+6. Start the app and select **Open Web UI**. Enable **Show in sidebar** on the app
+   Info page if you want a **Voice Match** sidebar entry. The page is available to
+   normal users too, but all operations enforce ownership on the server.
 
-## Enrol without a terminal
+## Guided voice learning
 
-The app temporarily becomes a recording-only Wyoming STT endpoint. It saves
-bounded samples and returns **empty transcripts**, never forwarding enrolment
-phrases to Whisper or an agent. This is not a browser microphone/upload UI.
+One-time setup: add a **Wyoming Protocol** integration using this app's internal
+hostname from its Info page and port `10350`. Use a **separate test Assist pipeline**
+with this STT service; select it in Companion or on your satellite. Leave the
+original Whisper pipeline unchanged. Existing integrations/pipelines need not be
+recreated on upgrade; the external port and discovery names remain the same.
 
-1. In app configuration choose `mode: enroll`.
-2. Set `enrollment_speaker` to a short lowercase ID such as `daniel` (letters,
-   digits, `_` and `-`, 1–40 characters, beginning with a letter or digit).
-3. Set `enrollment_session` to `first` (or a new ID for re-enrolment),
-   `enrollment_samples` to `30`, and `enrollment_consent` to `true` **only after
-   that speaker consents**. These IDs are not Home Assistant user identities.
-4. Start the app. Add a **Wyoming Protocol** integration using the app's internal
-   hostname shown on its information page and port `10350`. The repository prefix
-   is installation-specific; do not guess it or use `core-whisper` for the proxy.
-5. Create a **separate test Assist pipeline**, select this endpoint for STT, and
-   leave the working Whisper pipeline unchanged. Select the test pipeline in the
-   Android Companion app or on your satellite.
-6. Only the consenting speaker should use this pipeline during enrolment. For
-   each sample, tap the microphone (or use the satellite wake word), speak for
-   roughly five seconds, then finish the listening session. Use **mono 16 kHz,
-   16-bit PCM**; unsupported formats and recordings over 10 seconds are discarded.
-   Record about 30 varied phrases, at different distances and volumes, ideally
-   with the microphone that will be used later. Do not enrol TV or other people.
-7. Watch app logs for `Saved sample N/30`, then `Enrolment complete`. The first
-   model download requires internet access to Hugging Face. No audio is sent to
-   Hugging Face by the enrolment wrapper; samples/voiceprints are computed locally.
-   Downloads/model loading can take several minutes. Failures leave recordings
-   available for retry on restart; check the logs rather than assuming success.
-8. Set `mode: proxy`, clear `enrollment_consent` to `false`, save and restart the
-   app. Test it before making it your everyday STT provider.
+1. Open **Voice Match → Add a voice** while signed in to your own HA account.
+   Ordinary names such as “Daniel” work; internal file IDs are generated for you.
+2. Confirm the speaker's consent and the temporary pause in recognition. An
+   administrator can choose another active HA account when helping that person.
+3. Select **Start learning**. Only the consenting speaker should now use the test
+   assistant. Recognition through Voice Match is paused for **everyone** while
+   learning is active. An unauthenticated Wyoming microphone stream cannot prove
+   which account is speaking; account ownership protects management operations,
+   not the physical source of a recording. Keep other microphones/users inactive.
+4. In Assist, record about 30 varied five-second samples. Finish each listening
+   session and watch the page's progress count. Use the same microphone you will
+   normally use; vary natural phrases, distance and normal speaking volume. Avoid
+   TV or other people during learning. Audio must be mono 16 kHz/16-bit PCM; clips
+   under one second or over ten seconds are not saved.
+5. The page shows processing when enough samples have arrived. The first model
+   download requires internet access and can take several minutes. Audio remains
+   local. After a validated voiceprint is installed, sample/temporary files for
+   that person are deleted and normal matching starts again automatically. No
+   mode change, app restart or Core restart is needed for this workflow.
 
-Progress is stored in `/data/enrollment/<speaker>/<session>/`; restarting resumes
-the same session rather than silently collecting another set. A completed session
-stops recording until you explicitly choose a **new session ID**. Completion stays
-in recording-only mode until you switch to `proxy`. No enrolled voice means proxy
-mode fails closed with an explanatory log instead of forwarding everyone.
+**Pause learning** restores matching and retains partial samples to resume or
+delete explicitly. Recording also pauses after a 15-minute session or an app
+restart; it never silently resumes without fresh consent. Generation can take up
+to ten minutes and cannot be paused during installation. On errors, pause/resume
+to retry, or ask an administrator; the old voiceprint remains until a valid
+replacement is installed. Samples are not deleted merely because processing was
+attempted. No enrolled voice means no transcription, but the setup page stays open.
 
-For another consenting person repeat with their speaker ID. Re-enrolment with the
-same speaker ID and a **new** session replaces that speaker's voiceprint using only
-the new session; previous recordings are retained, not silently merged. Logs and
-backups may still contain old identities. Per-person deletion UI is deferred with
-Stage 2; do not promise consent withdrawal can erase historical backups. To remove
-all biometric data, stop/uninstall the app, remove its data when prompted, and
-remove any app backups containing it under your retention policy. Reinstalling
-without restoring data requires fresh enrolment. No management endpoint is exposed.
+To add another person, have them sign in to **their own HA account**, then use
+**Add a voice**. Each account has one managed profile; re-enrol it rather than
+creating duplicates. All enrolled voices can pass matching. Recognised speaker IDs
+are not sent to agents and do not control security-sensitive actions.
+
+## Existing voices, ownership and deletion
+
+Upgrading does **not** delete old recordings or change existing voiceprints.
+An administrator must explicitly assign a legacy voice (such as `daniel`) to its
+owner's HA account. We never infer ownership from a similar name or the first
+person opening the page. Normal users cannot view or claim unassigned voices.
+
+- **Re-enrol:** obtain fresh consent; keep the current voiceprint until the new
+  one passes validation and is atomically installed. All saved samples for that
+  person, including older sessions/working hard links, are then removed.
+- **Delete saved samples:** confirmation removes that person's saved recordings
+  and intermediate generated files, keeping their actual voiceprint. This is how
+  to clean up old recordings without repeating enrolment.
+- **Delete voice:** confirmation removes the voiceprint and samples, invalidates
+  in-flight results and reloads inference. The person will need to enrol again.
+- Normal users can do these only for their account. Administrators can manage
+  all profiles and reassign ownership, with confirmation. Disabled/deleted HA
+  accounts cannot access the page; an administrator must remove their voice data.
+  Disabling a HA account does not itself remove its voice from acoustic matching.
+
+Deletion does not affect other profiles or the shared downloaded model/cache. It
+does not securely erase disk blocks or remove old backups. Protect and expire
+backups separately. Partial paused sessions retain samples until you resume or
+choose deletion; successfully completed wizard sessions do not need raw samples.
 
 ## Options
 
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `upstream_uri` | `tcp://core-whisper:10300` | Existing Wyoming STT, `tcp://host:port`, no credentials/path |
-| `mode` | `proxy` | `enroll` explicitly records; `proxy` filters speech |
+| `mode` | `proxy` | Legacy option retained for upgrades; wizard controls learning |
 | `verify_threshold` | `0.30` | Speaker acceptance similarity, 0–1 |
 | `extraction_threshold` | `0.25` | Region retention similarity, at most verification threshold |
 | `debug` | `false` | May expose transcripts, speaker names and scores in logs |
-| `enrollment_speaker` | empty | Consenting person's local ID |
-| `enrollment_session` | `first` | Persistent recording batch ID |
+| `enrollment_speaker` | empty | Legacy, ignored by the guided workflow |
+| `enrollment_session` | `first` | Legacy, ignored by the guided workflow |
 | `enrollment_samples` | `30` | Requested samples, 1–100 (30 recommended by upstream) |
-| `enrollment_consent` | `false` | Explicit consent gate for enrolment mode |
+| `enrollment_consent` | `false` | Legacy, never substitutes for wizard consent |
 
 Options apply on app restart, not a Core restart. Start with defaults; lowering
 thresholds may accept TV/unknown speakers, raising them may reject quiet speech.
 Measure both false accepts and false rejects rather than using a single demo.
 Raw rejected audio saving, speaker transcript tagging and unmatched-speaker bypass
 are deliberately disabled. Default logs suppress upstream handler/verifier records
-because they include transcripts and speaker scores. Debug logs are sensitive.
+because they include transcripts and speaker scores. Sensitive worker inference
+logs remain suppressed even when launcher debug is selected.
 
 ## Data, downloads and backups
 
@@ -114,7 +141,8 @@ and restore must be tested after the first successful download.
   races; it does not fix or shorten the microphone's VAD/listening session.
 - Android tap-to-talk's listening session can remain open with TV speech because
   capture/VAD happens before this STT proxy. Manually finish recording for testing.
-  Real Android behaviour has **not yet been demonstrated** here.
+  The user reported successful initial Android enrolment and TV filtering on
+  version 0.1.0; the new guided workflow still requires real-device verification.
 - Extraction is region-based filtering, not guaranteed source separation. Upstream
   may return full audio if no regions are retained, and clips of three seconds or
   less skip extraction. Overlapping TV speech can remain even after verification.
