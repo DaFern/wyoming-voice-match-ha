@@ -22,6 +22,14 @@ See [installation, enrolment and rollback](voice_match/DOCS.md),
 
 **Manage voices:** an Ingress page and optional **Voice Match** sidebar entry provide
 consent, live learning progress, multiple account-owned voices and recording cleanup.
+
+**Development enrolment safety change:** ordinary Assist audio is no longer a
+training source in this checkout. The isolated learning transport is a prototype;
+the management Start control is disabled pending a trusted HA/speaker connector.
+Installed 0.3.2 still has global training capture. See
+[isolated enrolment](docs/ISOLATED_ENROLLMENT.md) before attempting re-enrolment.
+The [HA companion and paired bridge](docs/ENROLLMENT_COMPANION.md) are also
+development-only, tested with a simulated speaker; no real Echo adapter is included.
 Normal users manage their own voice; HA administrators manage all profiles. This
 uses Core API permission for automatic account/administrator verification; the
 credential is excluded from browser responses and inference-process environments.

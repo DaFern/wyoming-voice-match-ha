@@ -40,7 +40,7 @@ async function send(data) {
     message(error.message || "Connection failed. Refresh and try again.");
   } finally {
     busy = false;
-    document.querySelectorAll("button").forEach((element) => { element.disabled = false; });
+    document.querySelectorAll("button").forEach((element) => { element.disabled = element.id === "start-learning"; });
     await refresh(false);
   }
 }
@@ -65,12 +65,13 @@ function renderPrompt(job) {
 
 function renderWizard() {
   const own = state.profiles.find((profile) => profile.owner === state.user.id);
-  $("wizard").hidden = state.paused || (!state.user.admin && own && !editing);
+  $("wizard").hidden = state.learning || (!state.user.admin && own && !editing);
   $("wizard-title").textContent = editing ? `Learn ${editing.name}'s voice` : "Add a voice";
   $("name").disabled = Boolean(editing);
   $("back-to-add").hidden = !editing;
   $("owner-field").hidden = !state.user.admin || Boolean(editing);
   $("progress").hidden = !state.job;
+  $("start-learning").disabled = true; // Trusted speaker connector is not implemented yet.
   renderPrompt(state.job);
   if (state.job) {
     const job = state.job;
@@ -83,7 +84,7 @@ function renderWizard() {
     $("job-error").textContent = job.error || job.notice;
     $("cancel").disabled = job.processing || busy;
   }
-  $("retry").hidden = !state.user.admin || state.paused || state.engine !== "failed";
+  $("retry").hidden = !state.user.admin || state.learning || state.engine !== "failed";
 }
 
 function renderProfiles() {
@@ -176,12 +177,12 @@ async function refresh(showStatus = true) {
     if (!previous || JSON.stringify(previous.profiles) !== JSON.stringify(state.profiles)
         || previous.user.admin !== state.user.admin) renderProfiles();
     renderWizard();
-    if (previous?.job && !state.job && !state.paused) {
+    if (previous?.job && !state.job && !state.learning) {
       editing = null;
       renderWizard();
       message("Learning has ended. Check that the voice is Ready; saved sample size shows whether cleanup finished.");
     } else if (showStatus) {
-      message(state.paused ? "Voice matching is paused while a voice is being learned."
+      message(state.learning ? "An isolated learning session is active. Ordinary Assist requests are not training samples."
         : state.engine === "ready" ? "Voice matching is ready."
           : state.engine === "loading" ? "Loading the voice engine… This may take a few minutes."
             : state.engine === "failed" ? "Voice engine unavailable. Ask an administrator to retry."
@@ -208,14 +209,7 @@ async function refresh(showStatus = true) {
 
 $("enrol").addEventListener("submit", (event) => {
   event.preventDefault();
-  if (!state) return;
-  const data = { action: "begin", consent: $("consent").checked, pause_confirmed: $("pause").checked };
-  if (editing) data.id = editing.id;
-  else {
-    data.name = $("name").value;
-    data.owner = state.user.admin ? $("owner").value : state.user.id;
-  }
-  send(data);
+  message("Learning requires a trusted speaker connector. Ordinary Assist microphones cannot supply training samples.");
 });
 $("cancel").addEventListener("click", () => send({ action: "cancel" }));
 $("retry").addEventListener("click", () => send({ action: "retry_engine" }));

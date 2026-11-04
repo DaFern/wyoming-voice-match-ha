@@ -28,11 +28,11 @@
       <div id="enrollment-prompt" role="status" aria-live="polite" aria-atomic="true" hidden>
         <p id="phrase-number"></p><p id="enrollment-phrase"></p>
       </div>
-      <p>In Assist, choose your Voice Match test assistant. Use your usual microphone and normal speaking distance. Tap the microphone, read the displayed phrase naturally for about five seconds, then finish recording.</p>
-      <p>Wait for the sample to save before recording again. If rejected, try the same phrase again. Exact words are not checked; existing audio format and duration checks still apply. Only the consenting speaker should use this assistant while learning is active.</p>
+      <p>Record only through the authorised learning connector, using its microphone at your normal speaking distance. Read each phrase naturally for about five seconds. Ordinary Assist microphones do not supply training samples.</p>
+      <p>Wait for the sample to save before recording again. If rejected, try the same phrase again. Exact words are not checked; existing audio format and duration checks still apply. Only the consenting speaker should use the learning microphone.</p>
       <p id="job-error" role="alert"></p>
       <button id="cancel" type="button">Pause learning</button>
-      <p>Pausing keeps partial samples for you to resume or delete later. Normal voice matching resumes automatically.</p>
+      <p>Pausing keeps partial samples for you to resume with fresh consent or delete later. Normal voice matching stays separate throughout learning.</p>
     </section>
     <section id="wizard">
       <h2 id="wizard-title">Add your voice</h2>
@@ -41,10 +41,9 @@
         <div id="owner-field" hidden><label for="owner">Home Assistant account</label><select id="owner"></select></div>
         <label class="check"><input id="consent" type="checkbox" required>
           The speaker consents to local voice recording and a saved biometric voiceprint. After successful setup, saved samples for this person will be deleted. Old backups may still contain them.</label>
-        <label class="check"><input id="pause" type="checkbox" required>
-          I understand that Voice Match will temporarily stop answering commands for everyone. Only the consenting speaker will use the test assistant.</label>
+        <p>Isolated learning is a development prototype. Starting or resuming requires a trusted speaker connector, which is not implemented yet. Normal Assist traffic cannot train a voice. Do not switch an ordinary assistant to a learning pipeline as a workaround.</p>
         <p>We use about 30 short samples. The saved voiceprint stays on this system. A voice match is not proof of identity or permission to perform sensitive actions.</p>
-        <button type="submit">Start learning</button>
+        <button id="start-learning" type="submit" disabled>Learning connector required</button>
         <button id="back-to-add" type="button" hidden>Back</button>
       </form>
     </section>

@@ -1,0 +1,13 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Pair the learning companion (prototype)",
+        "description": "Development only. Pair with the separate learning-bridge key, not the Codex key. No real speaker adapter is included yet.",
+        "data": {"url": "Add-on internal HTTP(S) origin", "key": "Learning-bridge key"}
+      }
+    },
+    "error": {"cannot_connect": "Pairing could not be verified. Check the address and learning-bridge key."},
+    "abort": {"already_configured": "This learning bridge is already configured."}
+  }
+}

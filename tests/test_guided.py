@@ -181,10 +181,11 @@ class GuidedTests(unittest.IsolatedAsyncioTestCase):
 
     async def begin(self):
         await self.runtime.action(ALICE, {"action": "begin", "id": self.voice_id,
-                                         "consent": True, "pause_confirmed": True}, USERS)
+                                         "consent": True, "isolation_confirmed": True,
+                                         "source": "test-speaker"}, USERS)
 
-    async def test_consent_and_pause_are_both_required(self):
-        for data in ({"consent": True}, {"pause_confirmed": True}, {}):
+    async def test_consent_and_isolation_are_both_required(self):
+        for data in ({"consent": True}, {"isolation_confirmed": True}, {}):
             with self.assertRaises(ValueError):
                 await self.runtime.action(ALICE, dict(data, action="begin", id=self.voice_id), USERS)
         self.assertIsNone(self.runtime.active)
@@ -192,10 +193,12 @@ class GuidedTests(unittest.IsolatedAsyncioTestCase):
     async def test_non_admin_cannot_target_other_account(self):
         with self.assertRaises(Denied):
             await self.runtime.action(BOB, {"action": "begin", "id": self.voice_id,
-                                          "consent": True, "pause_confirmed": True}, USERS)
+                                          "consent": True, "isolation_confirmed": True,
+                                          "source": "test-speaker"}, USERS)
         with self.assertRaises(Denied):
             await self.runtime.action(BOB, {"action": "begin", "owner": "alice", "name": "fake",
-                                          "consent": True, "pause_confirmed": True}, USERS)
+                                          "consent": True, "isolation_confirmed": True,
+                                          "source": "test-speaker"}, USERS)
 
     async def test_cancel_owner_only_and_partial_work_resumes(self):
         await self.begin()
@@ -427,15 +430,15 @@ class GuidedTests(unittest.IsolatedAsyncioTestCase):
         await handler.handle_event(AudioChunk(audio=b"\x00" * 32000, rate=16000, width=2, channels=1).event())
         await handler.handle_event(AudioStop().event())
 
-    async def test_gateway_records_without_forwarding_any_enrolment_command(self):
+    async def test_gateway_never_records_during_enrolment(self):
         from wyoming.asr import Transcript
         await self.begin()
         handler = self.gateway()
         await self.stream(handler)
         await asyncio.gather(*list(self.runtime.tasks))
-        handler.transcribe.assert_not_awaited()
-        self.assertEqual(Transcript.from_event(handler.write_event.call_args.args[0]).text, "")
-        self.assertEqual(self.runtime.active.recording.count, 1)
+        handler.transcribe.assert_awaited_once()
+        self.assertEqual(Transcript.from_event(handler.write_event.call_args.args[0]).text, "test command")
+        self.assertEqual(self.runtime.active.recording.count, 0)
 
     async def test_gateway_normal_routing_calls_filtered_worker(self):
         from wyoming.asr import Transcript
@@ -462,13 +465,14 @@ class GuidedTests(unittest.IsolatedAsyncioTestCase):
         handler.transcribe.assert_not_awaited()
         self.assertEqual(Transcript.from_event(handler.write_event.call_args.args[0]).text, "")
 
-    async def test_only_first_enrolment_stream_can_claim_recording(self):
+    async def test_no_normal_stream_can_claim_enrolment(self):
         from wyoming.audio import AudioStart
         await self.begin()
         first, second = self.gateway(), self.gateway()
         start = AudioStart(rate=16000, width=2, channels=1).event()
         await first.handle_event(start)
         await second.handle_event(start)
-        self.assertIs(self.runtime.active.capture, first)
         self.assertTrue(first.valid)
-        self.assertFalse(second.valid)
+        self.assertTrue(second.valid)
+        self.assertFalse(self.runtime.active.processing)
+        self.assertEqual(self.runtime.active.recording.count, 0)

@@ -29,8 +29,8 @@ const get = (id) => {
   return elements.get(id);
 };
 const normal = { count: 0, target: 30, processing: false, error: "", notice: "", prompt: "First reading phrase." };
-function render(job, paused = true) {
-  context.input = { user: { id: "alice", admin: false }, profiles: [], paused, engine: "ready", job };
+function render(job, learning = true) {
+  context.input = { user: { id: "alice", admin: false }, profiles: [], learning, paused: false, engine: "ready", job };
   vm.runInContext("state = input; renderWizard();", context);
 }
 render(normal);
@@ -66,4 +66,5 @@ assert.equal(get("enrollment-prompt").hidden, true);
 assert.equal(get("enrollment-phrase").textContent, "");
 render(null, false);
 assert.equal(get("wizard").hidden, false);
+assert.equal(get("start-learning").disabled, true, "No unsafe fallback before a trusted connector exists");
 console.log("Guided phrase rendering checks passed");

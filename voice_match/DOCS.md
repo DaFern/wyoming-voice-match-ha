@@ -41,47 +41,32 @@ other security-sensitive operations. Recorded/replayed voices can fool matching.
 
 ## Guided voice learning
 
-One-time setup: add a **Wyoming Protocol** integration using this app's internal
-hostname from its Info page and port `10350`. Use a **separate test Assist pipeline**
-with this STT service; select it in Companion or on your satellite. Leave the
-original Whisper pipeline unchanged. Existing integrations/pipelines need not be
-recreated on upgrade; the external port and discovery names remain the same.
+**Development prototype, not deployed:** enrolment now requires a separate,
+authorised learning transport. Ordinary Assist traffic on 10350/10352 cannot
+become training audio; existing recognition continues during collection and
+generation. Activating a validated replacement still briefly reloads the worker.
+The management page's Start control is disabled until a trusted speaker
+connector exists. There is no selectable learning pipeline or Echo driver yet.
+See [the protocol, safeguards and limits](../docs/ISOLATED_ENROLLMENT.md).
 
-1. Open **Voice Match → Add a voice** while signed in to your own HA account.
-   Ordinary names such as “Daniel” work; internal file IDs are generated for you.
-2. Confirm the speaker's consent and the temporary pause in recognition. An
-   administrator can choose another active HA account when helping that person.
-3. Select **Start learning**. Only the consenting speaker should now use the test
-   assistant. Recognition through Voice Match is paused for **everyone** while
-   learning is active. An unauthenticated Wyoming microphone stream cannot prove
-   which account is speaking; account ownership protects management operations,
-   not the physical source of a recording. Keep other microphones/users inactive.
-4. In Assist, read the displayed phrase naturally for about five seconds using
-   your usual microphone and normal speaking distance. Finish each listening
-   session and wait for the page's saved count before recording again. There are
-   30 varied phrases; only saved samples advance the phrase, so rejected audio
-   keeps the same guidance. Exact words are **not checked**. Avoid TV or other
-   people during learning. Audio must be mono 16 kHz/16-bit PCM; clips under one
-   second or over ten seconds are not saved. Existing 1–100 sample targets remain
-   supported; targets above 30 cycle through the phrases.
-5. The page shows **Processing voiceprint** after the final saved sample. The first model
-   download requires internet access and can take several minutes. Audio remains
-   local. After a validated voiceprint is installed, sample/temporary files for
-   that person are deleted and normal matching starts again automatically. No
-   mode change, app restart or Core restart is needed for this workflow.
+The installed **0.3.2** release still uses global training capture. Its learning
+mode can save another person's ordinary Voice Match request into the active
+profile. Hold off on re-enrolment; merely choosing a separate stock Assist
+pipeline does not establish the recording source. These development changes do
+not alter the installed release.
 
-**Pause learning** restores matching and retains partial samples to resume at the
-phrase selected by the saved count, or delete explicitly. Recording also pauses after a 15-minute session or an app
-restart; it never silently resumes without fresh consent. Generation can take up
-to ten minutes and cannot be paused during installation. On errors, pause/resume
-to retry, or ask an administrator; the old voiceprint remains until a valid
-replacement is installed. Samples are not deleted merely because processing was
-attempted. No enrolled voice means no transcription, but the setup page stays open.
+Guidance still uses 30 varied phrases, about five seconds each, at normal
+microphone distance. Only saved samples advance the phrase; rejected audio keeps
+it. Exact words are not checked. Partial samples resume by saved count with fresh
+consent, and existing 1–100 sample targets remain supported. Pausing/expiry stops
+learning without restarting ordinary recognition. No active enrolment or secret
+session capability is restored automatically after an app restart.
 
-To add another person, have them sign in to **their own HA account**, then use
-**Add a voice**. Each account has one managed profile; re-enrol it rather than
-creating duplicates. All enrolled voices can pass matching. Recognised speaker IDs
-are not sent to agents and do not control security-sensitive actions.
+Each account has one managed profile. The existing print remains until a valid
+replacement is installed; cleanup occurs only after validated installation.
+Failures preserve available samples for retry. Keep other speakers/TV away from
+the learning microphone. Voice matching is not identity or permission to perform
+sensitive actions. No enrolled voice means no normal transcription.
 
 ## Existing voices, ownership and deletion
 

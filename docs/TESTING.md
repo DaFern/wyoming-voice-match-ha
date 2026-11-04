@@ -1,5 +1,71 @@
 # Validation and acceptance checklist
 
+## HA companion coordinator and encrypted bridge (development only)
+
+Local Python 3.14 add-on/unit suite: **111 tests passed, 4 upstream-engine tests
+skipped** (115 discovered). Separately, **7 native HA 2026.10.0 contracts passed**
+in the existing isolated framework environment. Targeted Ruff, JavaScript syntax,
+Python AST/JSON parsing and diff checks passed. The first seven new bridge tests
+failed before the companion modules existed. Early native test failures were
+test-fixture mistakes, corrected to use a real isolated test user and its
+client-bound access token; no production authentication was weakened.
+
+Coverage includes separate admin-only pairing, 0600 key-file permissions, no key
+in general state, encryption, wrong-key/tamper/TTL rejection, request replay,
+reflection/wrong-boot rejection, bounded replay-cache refusal, fresh delegated
+account checks, revocation during lookup, one-use recording permits, session-bound
+terminal status/cancellation and byte-identical codec copies. The simulated
+speaker exercises spoken-prompt-before-capture ordering, rejected-sample retry,
+validated completion/cleanup, normal Assist routing, cancellation, late/repeated
+cancel, restoration failure/recovery, revoked-account cleanup without privilege
+fallback and uncertain sample acceptance without blind resubmission.
+
+Native HA contracts check actual integration setup/unload, masked manual pairing,
+invalid pairing not being saved, real WebSocket caller binding, rejection of
+caller-supplied user IDs/unregistered devices, other-user status/cancel denial,
+and refusing to unload an unrestored source. These contracts use mock bridge and
+adapter boundaries; they are not an installed integration or real-device test.
+
+No real speaker adapter, device authentication/capture, automatic pipeline
+switch, screenless consent/command recognition or physical Echo testing exists
+yet. Real network/Ingress/HAOS behaviour, model-generation resource use, hardware
+restoration and exhaustive disconnect/timeouts remain unverified. No CI was
+submitted. See [the companion protocol and trust model](ENROLLMENT_COMPANION.md).
+
+No existing version bump, commit/push, deployment, live pairing-key creation,
+installation, flashing, setting change or restart was performed. The new
+companion manifest's `0.0.0` is a prototype placeholder, not an add-on release.
+
+## Isolated enrolment transport (development only)
+
+Local Python 3.14 suite: **87 tests passed, 4 upstream-engine tests skipped**
+(91 discovered). JavaScript syntax and `git diff --check` passed. The first six
+new transport regressions failed against the existing implementation before the
+transport was added: new isolated starts were rejected and the old global start
+was still accepted.
+
+The simulated speaker uses an aiohttp test server with stubbed Ingress identity,
+synthetic PCM and stubbed voiceprint generation. Coverage includes fresh consent,
+explicit source binding, one-use permits, rejected-audio retry, count binding,
+permit/session expiry, pause/restart invalidation, wrong account/source/session,
+CSRF/content-type checks, upload-time identity change, admin demotion, bounded
+oversized/odd audio, overlapping upload denial, final validated installation,
+cleanup and no credentials in state or capability representations. Ordinary and
+personalised gateway handlers continue calling the filtered worker while a
+learning sample is held processing; neither handler can contribute to training.
+
+The minimal-DOM renderer harness also confirms the management Start control is
+disabled pending a trusted connector. There is no automatic device routing,
+screenless consent/phrasing, HA integration, browser recording or real Echo test.
+Transport labels/capabilities do not attest physical device or biological speaker
+identity. Real model concurrency/resource use, upload-timeout/disconnect fault
+injection, Ingress/mobile behaviour, actual browser rendering and acoustic
+performance remain unverified. See [the protocol and remaining work](ISOLATED_ENROLLMENT.md).
+
+No version bump, commit/push, CI submission, installation, deployment, live
+re-enrolment, setting change or restart was performed for this prototype. The
+installed 0.3.2 release does not include this isolation.
+
 ## Guided enrolment phrases (0.3.2, not deployed)
 
 Local Python 3.14 validation: **71 tests passed, 4 upstream-engine tests
