@@ -1,10 +1,13 @@
 """Opt-in pairing and conservative selection of a personal prompt."""
 
+import logging
 import math
 import uuid
 
 from voices import atomic_json, Denied
-from speaker_packet import encode
+from speaker_packet import diagnostic_tag, encode
+
+LOG = logging.getLogger("personalization")
 
 
 class Connector:
@@ -41,23 +44,48 @@ class Connector:
 
     def wrap(self, text, match, profiles):
         if not self.config["enabled"] or not text:
+            LOG.info("Voice Match send: request=unavailable result=not_sent reason=%s",
+                     "disabled" if not self.config["enabled"] else "empty_transcript")
             return ""
         profile = None
+        similarity = margin = None
+        reason = "missing_match_metadata"
         if isinstance(match, dict):
             voice_id = match.get("speaker")
             similarity, margin = match.get("similarity"), match.get("margin")
+            reason = "invalid_match_metadata"
             if (isinstance(voice_id, str) and type(similarity) in (int, float) and type(margin) in (int, float)
-                    and math.isfinite(similarity) and math.isfinite(margin)
-                    and similarity >= self.config["min_similarity"]
-                    and margin >= self.config["min_margin"]):
-                profile = profiles.get(voice_id)
+                    and math.isfinite(similarity) and math.isfinite(margin)):
+                if similarity < self.config["min_similarity"]:
+                    reason = "below_similarity"
+                elif margin < self.config["min_margin"]:
+                    reason = "below_margin"
+                else:
+                    profile = profiles.get(voice_id)
+                    reason = "profile_missing" if not profile else "unassigned_profile"
         if profile and profile.get("owner"):
-            return encode(self.config["key"], text, voice=voice_id,
-                          revision=profile["context_version"],
-                          instructions=profile.get("personal_instructions", ""))
-        # Acoustic rejection still produces no text. An accepted but uncertain
-        # or unassigned voice gets fresh, neutral context, never another profile.
-        return encode(self.config["key"], text)
+            instructions = profile.get("personal_instructions", "")
+            wire = encode(self.config["key"], text, voice=voice_id,
+                          revision=profile["context_version"], instructions=instructions)
+            result, reason = "recognised", "matched"
+        else:
+            # Rejection still produces no text; uncertainty gets neutral context.
+            instructions = ""
+            wire = encode(self.config["key"], text)
+            result = "neutral"
+
+        def score(value):
+            return (repr(value) if type(value) in (int, float) and math.isfinite(value)
+                    else "unavailable")
+
+        LOG.info(
+            "Voice Match send: request=%s result=%s reason=%s similarity=%s margin=%s "
+            "min_similarity=%s min_margin=%s instructions_present=%s",
+            diagnostic_tag(wire), result, reason, score(similarity), score(margin),
+            score(self.config["min_similarity"]), score(self.config["min_margin"]),
+            bool(instructions),
+        )
+        return wire
 
 
 def set_preferences(store, actor, voice_id, text):

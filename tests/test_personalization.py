@@ -100,3 +100,42 @@ class PersonalizationTests(unittest.TestCase):
         if not consumer.exists():
             self.skipTest("Other repository unavailable in this checkout")
         self.assertEqual((SCRIPTS / "speaker_packet.py").read_bytes(), consumer.read_bytes())
+
+    def test_diagnostics_correlate_without_logging_private_values(self):
+        from speaker_packet import diagnostic_tag
+        key = self.pair()
+        preference = "Private preference marker"
+        command = "Private spoken command marker"
+        set_preferences(self.store, ALICE, self.voice, preference)
+        with self.assertLogs("personalization", level="INFO") as capture:
+            wire = self.connector.wrap(command, {
+                "speaker": self.voice, "similarity": .8, "margin": .3,
+            }, self.store.profiles)
+        output = "\n".join(capture.output)
+        self.assertIn("request=" + diagnostic_tag(wire), output)
+        self.assertIn("result=recognised reason=matched", output)
+        self.assertIn("instructions_present=True", output)
+        for private in (key, wire, command, preference, self.voice, "Alice", "alice",
+                        self.store.profiles[self.voice]["context_version"]):
+            self.assertNotIn(private, output)
+
+    def test_diagnostics_explain_neutral_fallback_without_changing_selection(self):
+        from speaker_packet import decode
+        key = self.pair()
+        profiles = self.store.profiles
+        for reason, match in (
+            ("missing_match_metadata", None),
+            ("invalid_match_metadata", {"speaker": self.voice, "similarity": float("nan"), "margin": .3}),
+            ("below_similarity", {"speaker": self.voice, "similarity": .4, "margin": .3}),
+            ("below_margin", {"speaker": self.voice, "similarity": .8, "margin": .01}),
+            ("profile_missing", {"speaker": "nonexistent", "similarity": .8, "margin": .3}),
+        ):
+            with self.subTest(reason=reason), self.assertLogs("personalization", level="INFO") as capture:
+                wire = self.connector.wrap("hello", match, profiles)
+            self.assertIn("result=neutral reason=" + reason, "\n".join(capture.output))
+            self.assertIsNone(decode(key, wire)[1]["voice"])
+            self.assertEqual(decode(key, wire)[1]["instructions"], "")
+        profiles[self.voice]["owner"] = None
+        with self.assertLogs("personalization", level="INFO") as capture:
+            self.connector.wrap("hello", {"speaker": self.voice, "similarity": .8, "margin": .3}, profiles)
+        self.assertIn("reason=unassigned_profile", "\n".join(capture.output))

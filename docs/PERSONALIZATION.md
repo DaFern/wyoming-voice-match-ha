@@ -105,6 +105,45 @@ impersonation remain possible. Do not conduct confidential conversations on shar
 speakers or permit voice identity to authorise locks, alarms, purchases or other
 sensitive actions. Keep those behind genuine HA authentication/confirmation.
 
+## Request diagnostics (development, not deployed)
+
+Minimal INFO-level logs correlate the add-on's decision with the paired Codex
+receiver and prompt composition. A 16-character `request` tag is a SHA-256 prefix
+of only the encrypted header. It is not a transcript hash, stable voice ID,
+pairing credential or proof of validation. The random encryption makes tags
+different for separate utterances, including repeated identical words. No wire
+format or key rotation is needed for this diagnostic extension.
+
+- `Voice Match send`: `result=recognised` or `neutral`, a fixed `reason`, finite
+  similarity/margin values (or `unavailable`), configured thresholds, and
+  `instructions_present=True/False`. Disabled/empty requests have no packet/tag.
+- `Voice Match receive`: the same tag, recognised/neutral/rejected result and
+  whether instructions were present in the verified packet.
+- `Voice Match prompt`: the same tag, `stage=prompt_prepared`, and
+  `instructions_applied=True/False`. This confirms local prompt composition, not
+  provider receipt, completed model execution or obedience to the instructions.
+  Retries/tool rounds can produce repeated records with the same tag.
+
+Neutral reasons distinguish missing/invalid match metadata, `below_similarity`,
+`below_margin`, `profile_missing` and `unassigned_profile`. Recognised with
+`instructions_present=False` means a profile was selected but its instructions
+were empty. Sender true / receiver true / prompt true establishes the local
+transport/composition path; a model can still decline or ignore a preference.
+
+Records omit names, profile/account IDs, keys, encrypted tokens, nonces, context
+revisions, instruction text, transcripts and model/base prompts. They still reveal
+request timing/outcomes and correlate activity, so protect logs and observe normal
+HA retention. These records are diagnostics only, never automation speaker state.
+
+After separate update/deployment/restart approval, request one fresh utterance
+and compare its tag across both logs. Historical requests cannot be reconstructed.
+The add-on already admits INFO logs. HA must also admit INFO for
+`custom_components.codex_assist.conversation` and
+`custom_components.codex_assist.voice_match`; use a separately approved targeted
+runtime logging-level change if necessary, not blanket debug logging. No logger
+levels, live settings, thresholds, ownership, preferences or audio acceptance were
+changed while implementing this extension in development checkouts.
+
 ## Rollback
 
 Switch the test pipeline back to port 10350/original Whisper STT. Disable preferences

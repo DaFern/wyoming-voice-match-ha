@@ -1,5 +1,25 @@
 # Validation and acceptance checklist
 
+## Minimal request diagnostics (development)
+
+Local Python 3.14 diagnostic validation: **65 tests passed, 4 upstream-engine
+tests skipped**. The isolated environment provided aiohttp, NumPy, Wyoming 1.8.0
+and cryptography; no test dependencies were installed into HA or the live app.
+New tests first failed because the diagnostic tag/decision logs did not exist.
+
+Sender tests check matched and all neutral reason categories, retain decoded
+packet-selection assertions, correlate tags and exclude private keys, encrypted
+tokens, names/profile IDs, revisions, command and preference text from logs. The
+paired codec copies match byte-for-byte, with no wire-format/key change. The
+paired Codex checkout passed 701 fast tests and 244 native HA contracts each on
+2026.6.0 and 2026.10.0, plus Ruff. These are synthetic/local results, not new CI,
+container-build, model-obedience or physical-device evidence.
+
+The changes are development-only. No live logger settings, thresholds, accounts,
+instructions, pipeline, app installation or Core state were changed. Diagnostics
+need separately approved deployment and a new utterance before they can explain
+the reported live symptom. See [the diagnostic guide](PERSONALIZATION.md#request-diagnostics-development-not-deployed).
+
 ## Experimental 0.3.0 personal preferences
 
 Local add-on checks: **63 passed, 4 engine tests skipped**. New coverage includes
