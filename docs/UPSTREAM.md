@@ -54,6 +54,9 @@ removed from worker/enrolment subprocess environments. No host folders, Docker A
 Supervisor management role or public web port are requested. Ingress restricts the
 management server to peer `172.30.32.2`; changing that network requires reviewing
 this policy, not trusting `X-Forwarded-For` or arbitrary headers.
+Environment stripping is not a sandbox against malicious code running in the
+same container. Only use trusted app/model dependencies and protect administrator
+access to the add-on and its data.
 
 The implementation follows the HA 2026.10.1 `config/auth/list` contract and
 `system-admin` group / owner semantics. APIs or Ingress identity headers unavailable
@@ -68,7 +71,11 @@ tag, Debian packages and runtime model downloads also change. No claim of bit-fo
 bit reproducibility or vulnerability-free dependencies is made. Run image/dependency
 scanning before publishing; do not silently float to a new engine release.
 
-Stage 2 speaker-ID events and agent personalisation are not implemented. Ownership,
-self-service enrolment and per-person deletion do not expose speaker identity to
-agents. Upstream `[speaker]` transcript tagging stays off, so existing
-intent parsers and agents are not given identity text as an accidental feature.
+Version 0.3.0 adds optional per-person response preferences via a paired Codex
+connector; see [PERSONALIZATION.md](PERSONALIZATION.md). The per-connection
+`VerificationTap` captures upstream results into private loopback metadata. The
+outer ordinary endpoint still strips that metadata and upstream `[speaker]`
+transcript tagging stays off. Only the opt-in endpoint carries an authenticated,
+encrypted, utterance-bound header. No shared last-speaker state or bare name is
+used to select prompts. Speaker-ID events, agent routing and guest mode remain
+deferred; nothing changes HA permissions based on a voice match.

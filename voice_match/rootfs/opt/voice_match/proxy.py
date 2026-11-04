@@ -14,8 +14,40 @@ _LOGGER = logging.getLogger("proxy")
 MAX_BYTES = 16000 * 2 * 60
 
 
+class VerificationTap:
+    """Capture the result for this connection, never a shared 'last speaker'."""
+    def __init__(self, base):
+        self.base = base
+        self.result = None
+
+    def __getattr__(self, name):
+        return getattr(self.base, name)
+
+    def verify(self, audio, rate):
+        self.result = self.base.verify(audio, rate)
+        return self.result
+
+
+def match_metadata(result):
+    if (result is None or not result.is_match or not result.matched_speaker
+            or result.matched_speaker not in result.all_scores):
+        return None
+    scores = sorted(result.all_scores.values(), reverse=True)
+    margin = scores[0] - scores[1] if len(scores) > 1 else 1.0
+    return {"speaker": result.matched_speaker, "similarity": result.similarity, "margin": margin}
+
+
 def bounded_handler(base):
     class BoundedHandler(base):
+        async def write_event(self, event):
+            if Transcript.is_type(event.type) and getattr(self, "_speaker_tap", None):
+                # Only the private loopback worker emits this extension. The
+                # ordinary external STT endpoint never forwards it to HA.
+                metadata = match_metadata(self._speaker_tap.result)
+                if metadata and Transcript.from_event(event).text:
+                    event.data["voice_match"] = metadata
+            await super().write_event(event)
+
         async def disconnect(self):
             self._audio_buffer = b""
             await super().disconnect()
@@ -24,6 +56,12 @@ def bounded_handler(base):
 
         async def handle_event(self, event):
             if AudioStart.is_type(event.type):
+                verifier = getattr(self, "verifier", None)
+                if verifier is not None:
+                    if isinstance(verifier, VerificationTap):
+                        verifier = verifier.base
+                    self._speaker_tap = VerificationTap(verifier)
+                    self.verifier = self._speaker_tap
                 start = AudioStart.from_event(event)
                 self._valid_format = (start.rate, start.width, start.channels) == (16000, 2, 1)
                 self._verify_result_cache = None

@@ -1,5 +1,5 @@
 name: "Wyoming Voice Match"
-version: "0.2.1"
+version: "0.3.0"
 slug: "voice_match"
 description: "Experimental CPU speaker-filtering proxy for Wyoming Whisper"
 url: "https://github.com/DaFern/wyoming-voice-match-ha"
@@ -18,8 +18,10 @@ homeassistant_api: true
 timeout: 30
 ports:
   10350/tcp:
+  10352/tcp:
 ports_description:
   10350/tcp: "Wyoming (unencrypted; leave disabled for internal HA use)"
+  10352/tcp: "Personalised Wyoming (paired Codex only; disabled until configured)"
 backup: cold
 options:
   upstream_uri: "tcp://core-whisper:10300"

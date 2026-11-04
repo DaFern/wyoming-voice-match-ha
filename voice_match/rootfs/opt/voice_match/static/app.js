@@ -2,6 +2,7 @@
 let state = null;
 let editing = null;
 let busy = false;
+let preferencesId = null;
 const $ = (id) => document.getElementById(id);
 const message = (text) => { $("message").textContent = text; };
 
@@ -30,6 +31,8 @@ async function send(data) {
     });
     const value = await response.json();
     if (!response.ok) throw new Error(value.error || "Change failed");
+    if (value.pairing_key) $("pairing-key").value = value.pairing_key;
+    if (data.action === "preferences") $("preferences").hidden = true;
     editing = null;
     $("enrol").reset();
     message("Change saved.");
@@ -80,6 +83,13 @@ function renderProfiles() {
     card.append(node("strong", profile.name));
     const label = profile.enrolled ? "Ready" : "Not yet learned";
     card.append(node("p", `${label}${profile.owner ? "" : " · Unassigned legacy voice"} · Saved samples: ${(profile.recording_bytes / 1048576).toFixed(1)} MB`));
+    button(card, "Personal instructions", () => {
+      preferencesId = profile.id;
+      $("preferences-title").textContent = `${profile.name}'s personal instructions`;
+      $("personal-instructions").value = profile.personal_instructions || "";
+      $("preferences").hidden = false;
+      $("preferences").scrollIntoView({ behavior: "smooth" });
+    });
     button(card, profile.pending ? "Resume learning" : "Re-enrol", () => edit(profile));
     if (profile.recording_bytes > 0) {
       button(card, "Delete saved samples", () => {
@@ -133,6 +143,23 @@ async function refresh(showStatus = true) {
       }
     }
     if (!previous) $("name").value = state.user.name;
+    $("connector").hidden = !state.user.admin;
+    if (!state.user.admin) $("pairing-key").value = "";
+    if (JSON.stringify(previous?.connector) !== JSON.stringify(state.connector) && state.connector) {
+      $("connector-enabled").checked = state.connector.enabled;
+      $("min-similarity").value = state.connector.min_similarity;
+      $("min-margin").value = state.connector.min_margin;
+    }
+    if (previous && (previous.user.id !== state.user.id || (previous.user.admin && !state.user.admin))) {
+      $("preferences").hidden = true;
+      $("personal-instructions").value = "";
+      preferencesId = null;
+      $("pairing-key").value = "";
+      if (previous.user.id !== state.user.id) {
+        $("enrol").reset();
+        $("name").value = state.user.name;
+      }
+    }
     // Avoid repeatedly replacing focusable profile controls during polling.
     if (!previous || JSON.stringify(previous.profiles) !== JSON.stringify(state.profiles)
         || previous.user.admin !== state.user.admin) renderProfiles();
@@ -155,6 +182,11 @@ async function refresh(showStatus = true) {
     $("wizard").hidden = true;
     $("progress").hidden = true;
     $("retry").hidden = true;
+    $("preferences").hidden = true;
+    $("personal-instructions").value = "";
+    preferencesId = null;
+    $("connector").hidden = true;
+    $("pairing-key").value = "";
     state = null;
     editing = null;
     message(error.message || "Connection lost. Refresh to try again.");
@@ -175,6 +207,26 @@ $("enrol").addEventListener("submit", (event) => {
 $("cancel").addEventListener("click", () => send({ action: "cancel" }));
 $("retry").addEventListener("click", () => send({ action: "retry_engine" }));
 $("back-to-add").addEventListener("click", () => { editing = null; renderWizard(); });
+$("preferences-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  send({ action: "preferences", id: preferencesId, instructions: $("personal-instructions").value, confirm: true });
+});
+$("close-preferences").addEventListener("click", () => { $("preferences").hidden = true; });
+$("new-pairing").addEventListener("click", () => {
+  if (confirm("Replace the pairing key? This disables the personalised endpoint until you pair Codex again and enable it. Existing filtering is unchanged.")) {
+    send({ action: "connector_rotate", confirm: true });
+  }
+});
+$("copy-pairing").addEventListener("click", async () => {
+  if (!$("pairing-key").value) return message("Create a key first.");
+  try { await navigator.clipboard.writeText($("pairing-key").value); message("Pairing key copied. Paste it into Codex's Voice Match options, not into a chat."); }
+  catch { $("pairing-key").select(); message("Use your device's Copy command on the selected key."); }
+});
+$("connector-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  send({ action: "connector_configure", enabled: $("connector-enabled").checked,
+    min_similarity: Number($("min-similarity").value), min_margin: Number($("min-margin").value), confirm: true });
+});
 async function poll() {
   if (!busy) await refresh();
   setTimeout(poll, state?.paused ? 3000 : 10000);

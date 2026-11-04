@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0
+
+- Optional per-profile personal instructions, protected by existing ownership rules.
+- Administrator pairing with Codex Multi-Assist 0.7.0 and a separate opt-in STT
+  endpoint on 10352. Normal STT on 10350 remains unchanged.
+- Encrypted, utterance-bound request context and conservative neutral fallback for
+  uncertain/unassigned matches. No speaker-based permissions or agent routing.
+- Experimental paired implementation; real HA/mobile end-to-end checks pending.
+
 ## 0.2.1
 
 - Fixed the Back button masking the form's native `reset()` method, which caused

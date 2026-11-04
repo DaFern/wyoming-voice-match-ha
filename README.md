@@ -24,16 +24,23 @@ See [installation, enrolment and rollback](voice_match/DOCS.md),
 consent, live learning progress, multiple account-owned voices and recording cleanup.
 Normal users manage their own voice; HA administrators manage all profiles. This
 uses Core API permission for automatic account/administrator verification; the
-credential never reaches the browser or inference processes.
+credential is excluded from browser responses and inference-process environments.
 
-**Status:** version 0.1.0 built successfully in CI and was tested by the user on HAOS
-with enrolment, normal speech, TV-only rejection and speech with TV playing. These
-are initial observations, not an accuracy guarantee. The new 0.2.0 management UI
-and runtime have not yet been deployed or manually verified on HAOS. Always keep
-the original Whisper pipeline as a fallback.
+**Personal preferences (experimental 0.3.0):** an optional paired connector adds
+per-person response instructions to Codex Multi-Assist 0.7.0. It is disabled by
+default, uses a separate STT endpoint and never changes HA permissions. See
+[setup and privacy limits](docs/PERSONALIZATION.md); this paired feature has not
+yet been deployed or verified end-to-end.
 
-Speaker-aware agent personalisation (issue #1 Stage 2) is not implemented. This
-project does not change Codex Multi-Assist, Piper, personalities or AI Task.
+**Status:** the user tested enrolment and initial TV filtering on 0.1.0, then
+confirmed the 0.2.1 management UI, saved-sample cleanup and continued voice matching.
+These are initial observations, not an accuracy guarantee. The new 0.3.0 paired
+preference feature is not deployed or end-to-end verified. Keep the original
+Whisper pipeline as a fallback.
+
+Speaker-based agent routing, identity events and guest mode remain deferred.
+The optional prompt-preference connector requires a separate reviewed Codex update;
+it does not change existing personalities, Piper or AI Task.
 
 Upstream copyright and MIT licence are retained in
 [THIRD_PARTY_LICENSE](voice_match/THIRD_PARTY_LICENSE). Upstream authors retain

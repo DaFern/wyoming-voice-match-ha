@@ -13,7 +13,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: "python -m pip install wyoming==1.8.0 aiohttp==3.13.2 numpy==1.26.4"
+      - run: "python -m pip install wyoming==1.8.0 aiohttp==3.13.2 numpy==1.26.4 cryptography==46.0.3"
       - run: "python -m unittest discover -s tests -v"
       - run: "git diff --check"
   container:

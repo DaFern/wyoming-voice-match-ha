@@ -12,6 +12,16 @@
     <header><h1>Voice Match</h1><p>Manage your voice</p></header>
     <p id="message" role="status" aria-live="polite">Connecting to Home Assistant…</p>
     <section><h2>Saved voices</h2><div id="profiles"></div></section>
+    <section id="preferences" hidden>
+      <h2 id="preferences-title">Personal instructions</h2>
+      <form id="preferences-form">
+        <label for="personal-instructions">How should the assistant respond to you?</label>
+        <textarea id="personal-instructions" maxlength="2000" rows="5"></textarea>
+        <p>For example: “Call me Daniel. Keep answers brief and use Celsius.” These are response preferences, not permissions or executable templates. Do not put secrets here. When enabled, they are sent to your selected Codex provider with your request.</p>
+        <button type="submit">Save instructions</button>
+        <button id="close-preferences" type="button">Close</button>
+      </form>
+    </section>
     <section id="progress" hidden>
       <h2>Learning a voice</h2><p id="count" aria-live="polite"></p>
       <progress id="bar" max="30" value="0"></progress>
@@ -39,6 +49,23 @@
       <p>Your signed-in Home Assistant account controls which voices you can manage. Administrators can manage all profiles. Other users can only manage their own.</p>
       <p>Deleting samples keeps your voiceprint. Deleting a voice removes both. Neither action removes old backups or guarantees secure erasure from disk.</p>
       <p>New microphones or a changed voice may need fresh samples. Keep the original Whisper assistant available as a fallback.</p>
+    </section>
+    <section id="connector" hidden>
+      <h2>Codex personalisation pairing</h2>
+      <p>Administrator setup. The existing STT endpoint stays unchanged. Pair Codex Multi-Assist first, then connect a separate Wyoming integration to this add-on on port 10352 and use it only with the paired agent. An unpaired agent cannot interpret the encrypted request context.</p>
+      <button id="new-pairing" type="button">Create or replace pairing key</button>
+      <label for="pairing-key">New key (copy now; not shown again after leaving this page)</label>
+      <input id="pairing-key" type="password" readonly autocomplete="off">
+      <button id="copy-pairing" type="button">Copy key</button>
+      <form id="connector-form">
+        <label class="check"><input id="connector-enabled" type="checkbox">Enable the personalised endpoint</label>
+        <label for="min-similarity">Minimum personalisation similarity</label>
+        <input id="min-similarity" type="number" min="0" max="1" step="0.01" required>
+        <label for="min-margin">Minimum gap from another enrolled voice</label>
+        <input id="min-margin" type="number" min="0" max="1" step="0.01" required>
+        <p>These stricter checks affect preferences only, not existing speech filtering. Scores are not probabilities. Accepted but uncertain voices receive neutral preferences and fresh context. Voice matching is not authentication.</p>
+        <button type="submit">Save pairing settings</button>
+      </form>
     </section>
     <button id="retry" type="button" hidden>Retry voice engine</button>
   </main>

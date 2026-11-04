@@ -28,7 +28,7 @@ class EngineContractTests(unittest.IsolatedAsyncioTestCase):
                 return SimpleNamespace(
                     is_match=match, similarity=0.8 if match else 0.1,
                     threshold=0.3, matched_speaker="test" if match else None,
-                    all_scores={},
+                    all_scores={"test": 0.8 if match else 0.1},
                 )
             def extract_speaker_audio(self, audio, speaker, rate):
                 return audio
@@ -68,3 +68,16 @@ class EngineContractTests(unittest.IsolatedAsyncioTestCase):
         handler = self.handler(True)
         await self.stream(handler)
         self.assertEqual(Transcript.from_event(handler.write_event.call_args.args[0]).text, "")
+
+    async def test_worker_metadata_is_tied_to_this_verification_not_a_global_sensor(self):
+        from unittest.mock import patch
+        from wyoming_voice_match.handler import SpeakerVerifyHandler
+        handler = self.handler(True)
+        # Use the real adapter write path, intercepting only the underlying wire.
+        del handler.write_event
+        handler._forward_to_upstream = AsyncMock(return_value="test command")
+        with patch.object(SpeakerVerifyHandler, "write_event", new_callable=AsyncMock) as send:
+            await self.stream(handler)
+        event = send.call_args.args[0]
+        self.assertEqual(event.data["voice_match"]["speaker"], "test")
+        self.assertEqual(event.data["voice_match"]["similarity"], .8)

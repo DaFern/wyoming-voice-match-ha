@@ -255,6 +255,63 @@ class GuidedTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.runtime.view(BOB)["profiles"], [])
         self.assertIn("job", self.runtime.view(ADMIN))
 
+    async def test_personalized_endpoint_is_disabled_until_paired(self):
+        from wyoming.info import Info
+        from wyoming.asr import Transcript
+        from guided import Gateway
+        handler = Gateway(self.runtime, Info(), None, None, personalized=True)
+        handler.write_event = AsyncMock()
+        handler.transcribe = AsyncMock(return_value="test command")
+        await self.stream(handler)
+        self.assertEqual(Transcript.from_event(handler.write_event.call_args.args[0]).text, "")
+
+    async def test_personalized_gateway_wraps_only_its_own_worker_result(self):
+        from wyoming.info import Info
+        from wyoming.asr import Transcript
+        from guided import Gateway
+        from speaker_packet import decode
+        result = await self.runtime.action(ADMIN, {"action": "connector_rotate", "confirm": True}, USERS)
+        await self.runtime.action(ADMIN, {"action": "connector_configure", "confirm": True,
+                                        "enabled": True, "min_similarity": .5, "min_margin": .1}, USERS)
+        await self.runtime.action(ALICE, {"action": "preferences", "id": self.voice_id,
+                                        "instructions": "Be brief", "confirm": True}, USERS)
+        handler = Gateway(self.runtime, Info(), None, None, personalized=True)
+        handler.write_event = AsyncMock()
+        async def transcription():
+            handler.match = {"speaker": self.voice_id, "similarity": .9, "margin": .2}
+            return "test command"
+        handler.transcribe = AsyncMock(side_effect=transcription)
+        await self.stream(handler)
+        wire = Transcript.from_event(handler.write_event.call_args.args[0]).text
+        text, payload, _ = decode(result["pairing_key"], wire)
+        self.assertEqual(text, "test command")
+        self.assertEqual(payload["voice"], self.voice_id)
+        self.assertEqual(payload["instructions"], "Be brief")
+
+    async def test_http_pairing_key_is_admin_post_only_and_preferences_are_owned(self):
+        from aiohttp.test_utils import TestClient, TestServer
+        from guided import create_app
+        current = {"actor": ADMIN}
+        async def identify(request):
+            return current["actor"], USERS
+        client = TestClient(TestServer(create_app(self.runtime, identify)))
+        await client.start_server()
+        try:
+            state = await (await client.get("/api/state")).json()
+            response = await client.post("/api/action", json={"action": "connector_rotate", "confirm": True},
+                                         headers={"X-Voice-CSRF": state["csrf"]})
+            key = (await response.json())["pairing_key"]
+            state = await (await client.get("/api/state")).json()
+            self.assertNotIn(key, str(state))
+            current["actor"] = BOB
+            state = await (await client.get("/api/state")).json()
+            for data in ({"action": "connector_rotate", "confirm": True},
+                         {"action": "preferences", "id": self.voice_id, "instructions": "Fake", "confirm": True}):
+                response = await client.post("/api/action", json=data, headers={"X-Voice-CSRF": state["csrf"]})
+                self.assertEqual(response.status, 403)
+        finally:
+            await client.close()
+
     async def test_http_csrf_and_server_side_ownership(self):
         from aiohttp.test_utils import TestClient, TestServer
         from guided import create_app

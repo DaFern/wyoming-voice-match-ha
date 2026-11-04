@@ -6,7 +6,7 @@ section { border: 1px solid GrayText; border-radius: 12px; padding: 18px; margin
 h1 { margin-bottom: 8px; } h2 { font-size: 1.25rem; margin-top: 0; }
 p { line-height: 1.5; }
 label { display: block; margin: 14px 0 6px; }
-input:not([type="checkbox"]), select { box-sizing: border-box; width: 100%; padding: 10px; font: inherit; }
+input:not([type="checkbox"]), select, textarea { box-sizing: border-box; width: 100%; padding: 10px; font: inherit; }
 input[type="checkbox"] { width: 20px; height: 20px; flex-shrink: 0; }
 .check { display: flex; align-items: flex-start; gap: 10px; line-height: 1.45; }
 button { font: inherit; padding: 11px 15px; margin: 8px 8px 0 0; cursor: pointer; min-height: 44px; }

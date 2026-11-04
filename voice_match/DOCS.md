@@ -1,5 +1,10 @@
 # Installation and operation
 
+For the optional **0.3.0 personal response preferences** and paired Codex connector,
+see [Personalisation](../docs/PERSONALIZATION.md). Keep it disabled until both
+components are reviewed, tested and deployed. Existing filtering uses port 10350
+and does not require this feature.
+
 ## Before installing
 
 This is an experimental wrapper for upstream Wyoming Voice Match v1.9.1, not

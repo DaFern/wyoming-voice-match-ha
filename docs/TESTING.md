@@ -1,5 +1,39 @@
 # Validation and acceptance checklist
 
+## Experimental 0.3.0 personal preferences
+
+Local add-on checks: **63 passed, 4 engine tests skipped**. New coverage includes
+per-profile ownership, preference revision, encrypted/context-bound packets,
+neutral fallback, key rotation, admin-only pairing responses, no key in state,
+and the disabled-by-default separate endpoint. The two protocol source copies
+match in the local paired checkouts. These tests use synthetic speakers and
+keys, not biometric data or production credentials.
+
+The accompanying Codex 0.7.0 source passed Ruff and **688 fast tests** in an isolated
+Python 3.14 environment. A pre-existing AI Task test failure was reproduced on
+unmodified HEAD and, with explicit approval, fixed by supplying the fake entity's
+missing `entity_id`; production AI Task runtime was not changed. The new HA framework
+contract is written but unrun. Container builds, real pairing/Ingress, live
+two-person prompt selection and concurrent-device end-to-end checks remain pending.
+No commit, push, deployment or restart is implied by these local results.
+
+See [personalisation setup and boundaries](PERSONALIZATION.md). Before enabling:
+
+- Deploy compatible reviewed builds separately, with backup and restart consent.
+- Verify ordinary port 10350 still emits plain text with pairing off/on.
+- Verify 10352 is silent while disabled and only paired agents can consume it.
+- Enrol at least two consenting speakers; calibrate preference-only similarity
+  and gap thresholds, including uncertain/overlapping and wrong-speaker cases.
+- Test A → B → A within one HA conversation and on simultaneous devices; earlier
+  turns must not appear in the next speaker's model input.
+- Test copied, expired, changed and wrong-key packets; provider calls must not run.
+- Verify personal instructions are not evaluated as HA/Jinja templates, and
+  linked accounts never replace the original HA caller or tool permissions.
+- Confirm no key is in state/diagnostics/logs, no public port is enabled, and
+  ordinary agents, personalities, Piper and AI Task remain unchanged.
+
+## Earlier version evidence
+
 Version **0.2.1** fixes the user-reported frontend `reset is not a function` error.
 The new form-control regression failed against 0.2.0, then passed after renaming
 the conflicting Back button. Local suite: **52 tests passed, 3 engine tests skipped**;

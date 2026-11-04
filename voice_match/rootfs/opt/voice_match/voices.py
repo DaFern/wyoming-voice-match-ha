@@ -56,6 +56,8 @@ class VoiceStore:
         self.profiles = json.loads(self.path.read_text()) if self.path.exists() else {}
         for voice_id in self.profiles:
             safe_id(voice_id)
+            self.profiles[voice_id].setdefault("personal_instructions", "")
+            self.profiles[voice_id].setdefault("context_version", uuid.uuid4().hex)
         # Never infer ownership from names or first visitor. Legacy profiles are
         # visible only to administrators until explicitly assigned.
         for path in (self.root / "voiceprints").glob("*.npy"):
@@ -64,7 +66,8 @@ class VoiceStore:
             except ValueError:
                 continue
             if voice_id not in self.profiles:
-                self.profiles[voice_id] = {"name": voice_id, "owner": None}
+                self.profiles[voice_id] = {"name": voice_id, "owner": None,
+                                          "personal_instructions": "", "context_version": uuid.uuid4().hex}
         self.save()
 
     def save(self):
@@ -86,7 +89,8 @@ class VoiceStore:
         if any(item["owner"] == owner for item in self.profiles.values()):
             raise ValueError("This account already has a voice. Choose Re-enrol instead")
         voice_id = "v" + uuid.uuid4().hex
-        self.profiles[voice_id] = {"name": display_name(name), "owner": owner}
+        self.profiles[voice_id] = {"name": display_name(name), "owner": owner,
+                                  "personal_instructions": "", "context_version": uuid.uuid4().hex}
         self.save()
         return voice_id
 
@@ -96,7 +100,11 @@ class VoiceStore:
         profile = self.get(voice_id, actor)
         if any(key != voice_id and item["owner"] == owner for key, item in self.profiles.items()):
             raise ValueError("That account already has a voice")
-        profile["owner"] = owner
+        if profile["owner"] != owner:
+            profile["owner"] = owner
+            # Do not carry one person's preferences or active context to a new owner.
+            profile["personal_instructions"] = ""
+            profile["context_version"] = uuid.uuid4().hex
         self.save()
 
     def _files(self, voice_id):

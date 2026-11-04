@@ -1,7 +1,7 @@
 """Ingress management and a persistent Wyoming front door for guided enrolment."""
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import partial
 import hashlib
 import hmac
@@ -25,6 +25,8 @@ from enrollment import Recording
 from healthcheck import check
 from identity import actor_from_users, identify
 from voices import Denied, VoiceStore, validate_voiceprint
+from personalization import Connector, set_preferences
+from speaker_packet import PacketError
 
 LOG = logging.getLogger("guided")
 STATIC = Path(__file__).parent / "static"
@@ -94,6 +96,7 @@ class Job:
 class Runtime:
     def __init__(self, root, options, worker=None):
         self.store = VoiceStore(root)
+        self.connector = Connector(self.store.root)
         self.options = options
         self.worker = worker or Worker()
         self.active = None
@@ -123,6 +126,8 @@ class Runtime:
                 recording_bytes=self.store.recording_bytes(voice_id),
             ))
         result = {"profiles": profiles, "engine": self.worker.status, "paused": self.active is not None}
+        if actor["admin"]:
+            result["connector"] = self.connector.view()
         job = self.active
         if job and (actor["admin"] or job.actor_id == actor["id"]):
             result["job"] = {"id": job.voice_id, "count": job.recording.count,
@@ -171,6 +176,7 @@ class Runtime:
                     # durable completion. Both legacy hard links are removed.
                     self.store.cleanup(job.voice_id)
                     profile.pop("pending", None)
+                    profile["context_version"] = uuid.uuid4().hex
                     self.store.save()
                     self.active = None
                     await self.reload()
@@ -192,6 +198,12 @@ class Runtime:
             raise ValueError("Please wait for voice processing to finish")
         async with self.lock:
             action = data.get("action")
+            if action in {"connector_rotate", "connector_configure"}:
+                if self.active:
+                    raise ValueError("Finish or pause learning before changing pairing")
+                result = self.connector.action(actor, data)
+                self.epoch += 1
+                return result
             if action == "begin":
                 await self.begin(actor, data, users)
                 return
@@ -220,6 +232,10 @@ class Runtime:
                 owner = data.get("owner")
                 actor_from_users(owner, users)
                 self.store.assign(voice_id, owner, actor)
+                self.epoch += 1
+            elif action == "preferences":
+                set_preferences(self.store, actor, voice_id, data.get("instructions"))
+                self.epoch += 1
             elif action == "cleanup":
                 self.store.cleanup(voice_id)
                 self.store.profiles[voice_id].pop("pending", None)
@@ -249,7 +265,7 @@ class Runtime:
 
 
 class Gateway(AsyncEventHandler):
-    def __init__(self, runtime, info, *args):
+    def __init__(self, runtime, info, *args, personalized=False):
         super().__init__(*args)
         self.runtime, self.info = runtime, info
         self.audio = bytearray()
@@ -257,6 +273,8 @@ class Gateway(AsyncEventHandler):
         self.job = None
         self.language = None
         self.epoch = -1
+        self.personalized = personalized
+        self.match = None
 
     async def disconnect(self):
         if self.job and self.job.capture is self:
@@ -271,6 +289,7 @@ class Gateway(AsyncEventHandler):
         elif Transcribe.is_type(event.type):
             self.language = Transcribe.from_event(event).language
         elif AudioStart.is_type(event.type):
+            self.match = None
             self.audio.clear()
             start = AudioStart.from_event(event)
             self.valid = (start.rate, start.width, start.channels) == (16000, 2, 1)
@@ -306,7 +325,9 @@ class Gateway(AsyncEventHandler):
             elif valid and self.runtime.active is None and self.runtime.worker.status == "ready":
                 try:
                     text = await asyncio.wait_for(self.transcribe(), 40)
-                except (OSError, asyncio.TimeoutError):
+                    if self.personalized:
+                        text = self.runtime.connector.wrap(text, self.match, self.runtime.store.profiles)
+                except (OSError, asyncio.TimeoutError, PacketError):
                     LOG.warning("Voice engine unavailable; no unverified audio was forwarded")
             self.audio.clear()
             if self.runtime.epoch != self.epoch:
@@ -326,6 +347,7 @@ class Gateway(AsyncEventHandler):
                 if event is None:
                     return ""
                 if Transcript.is_type(event.type):
+                    self.match = event.data.get("voice_match")
                     return Transcript.from_event(event).text
 
 
@@ -379,8 +401,8 @@ def create_app(runtime, identity_lookup=identify):
         data = await request.json()
         if not isinstance(data, dict):
             raise ValueError("Invalid request")
-        await runtime.action(request["actor"], data, request["users"])
-        return web.json_response({"ok": True})
+        result = await runtime.action(request["actor"], data, request["users"])
+        return web.json_response({"ok": True, **(result or {})})
 
     async def static(request):
         name = request.match_info.get("name", "index.html")
@@ -388,7 +410,7 @@ def create_app(runtime, identity_lookup=identify):
             raise web.HTTPNotFound()
         return web.FileResponse(STATIC / name)
 
-    app = web.Application(middlewares=[security], client_max_size=4096)
+    app = web.Application(middlewares=[security], client_max_size=16384)
     app.router.add_get("/", static)
     app.router.add_get("/static/{name}", static)
     app.router.add_get("/api/state", state)
@@ -410,9 +432,9 @@ async def service_info(uri):
         LOG.warning("Whisper language discovery failed; using English until the app is restarted")
     attribution = Attribution(name="Wyoming Voice Match", url="https://github.com/jxlarrea/wyoming-voice-match")
     return Info(asr=[AsrProgram(name="voice-match", description="Voice Match", attribution=attribution,
-                               installed=True, version="0.2.1", models=[AsrModel(
+                               installed=True, version="0.3.0", models=[AsrModel(
                                    name="voice-match-proxy", description="Speaker-filtered ASR",
-                                   attribution=attribution, installed=True, version="0.2.1", languages=languages)])])
+                                   attribution=attribution, installed=True, version="0.3.0", languages=languages)])])
 
 
 async def serve(options):
@@ -422,6 +444,7 @@ async def serve(options):
     await runner.setup()
     await web.TCPSite(runner, "0.0.0.0", 8099).start()
     server = AsyncServer.from_uri("tcp://0.0.0.0:10350")
+    personal_server = AsyncServer.from_uri("tcp://0.0.0.0:10352")
     tasks = []
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -430,6 +453,10 @@ async def serve(options):
     try:
         info = await service_info(options["upstream_uri"])
         await server.start(partial(Gateway, runtime, info))
+        program = info.asr[0]
+        personal_info = replace(info, asr=[replace(program, name="voice-match-personal",
+                                models=[replace(model, name="voice-match-personal-proxy") for model in program.models])])
+        await personal_server.start(partial(Gateway, runtime, personal_info, personalized=True))
         await runtime.reload()
         tasks.append(asyncio.create_task(runtime.expire()))
         LOG.info("Manage voices is ready through Home Assistant Ingress")
@@ -439,5 +466,6 @@ async def serve(options):
             task.cancel()
         await asyncio.gather(*tasks, *list(runtime.tasks), return_exceptions=True)
         await server.stop()
+        await personal_server.stop()
         await runtime.worker.stop()
         await runner.cleanup()
