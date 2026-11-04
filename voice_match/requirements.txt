@@ -1,0 +1,8 @@
+# Direct dependencies pinned; transitive packages are not a complete lockfile.
+wyoming==1.8.0
+speechbrain==1.0.3
+scipy==1.15.3
+numpy==1.26.4
+requests==2.32.5
+huggingface_hub==0.26.5
+soundfile==0.13.1

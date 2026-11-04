@@ -1,0 +1,37 @@
+name: "Wyoming Voice Match"
+version: "0.1.0"
+slug: "voice_match"
+description: "Experimental CPU speaker-filtering proxy for Wyoming Whisper"
+url: "https://github.com/DaFern/wyoming-voice-match-ha"
+arch:
+  - amd64
+startup: application
+boot: manual
+stage: experimental
+init: true
+timeout: 30
+ports:
+  10350/tcp:
+ports_description:
+  10350/tcp: "Wyoming (unencrypted; leave disabled for internal HA use)"
+backup: cold
+options:
+  upstream_uri: "tcp://core-whisper:10300"
+  mode: "proxy"
+  verify_threshold: 0.30
+  extraction_threshold: 0.25
+  debug: false
+  enrollment_speaker: ""
+  enrollment_session: "first"
+  enrollment_samples: 30
+  enrollment_consent: false
+schema:
+  upstream_uri: "str"
+  mode: "list(proxy|enroll)"
+  verify_threshold: "float(0,1)"
+  extraction_threshold: "float(0,1)"
+  debug: "bool"
+  enrollment_speaker: "str"
+  enrollment_session: "str"
+  enrollment_samples: "int(1,100)"
+  enrollment_consent: "bool"

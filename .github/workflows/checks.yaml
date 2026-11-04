@@ -1,0 +1,29 @@
+name: "Checks"
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: "python -m pip install wyoming==1.8.0"
+      - run: "python -m unittest discover -s tests -v"
+      - run: "git diff --check"
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - run: "docker build -t voice-match-ha:test voice_match"
+      - run: "docker run --rm --entrypoint python voice-match-ha:test -m pip check"
+      - run: >
+          docker run --rm -v "$GITHUB_WORKSPACE:/repo:ro" -w /repo
+          -e PYTHONPATH=/app --entrypoint python voice-match-ha:test
+          -m unittest discover -s tests -v
