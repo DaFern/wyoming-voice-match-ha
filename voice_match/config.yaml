@@ -1,5 +1,5 @@
 name: "Wyoming Voice Match"
-version: "0.3.0"
+version: "0.3.1"
 slug: "voice_match"
 description: "Experimental CPU speaker-filtering proxy for Wyoming Whisper"
 url: "https://github.com/DaFern/wyoming-voice-match-ha"

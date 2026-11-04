@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.1
+
+- Added privacy-preserving personalisation diagnostics: match/fallback reasons,
+  similarity/margin checks and whether personal instructions were included.
+- Correlate sender decisions with the matching Codex diagnostic build using a
+  request-specific ciphertext hash, without logging names, keys, encrypted tokens,
+  transcripts or instruction text. Existing pairing keys remain valid.
+- No changes to recognition thresholds, voiceprints, ownership or preferences.
+  This update diagnoses missing personalisation; it does not remove the encrypted
+  header from Assist's visible transcript or guarantee model compliance.
+
 ## 0.3.0
 
 - Optional per-profile personal instructions, protected by existing ownership rules.
