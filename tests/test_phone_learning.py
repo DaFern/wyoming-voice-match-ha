@@ -30,17 +30,41 @@ class PhoneLearningTests(unittest.IsolatedAsyncioTestCase):
         self.connection = object()
         self.phone = PhoneController(self.bridge)
 
-    async def test_first_yes_only_gets_notice_second_yes_consents_neither_is_a_sample(self):
+    async def test_first_start_only_gets_notice_second_start_consents_neither_is_a_sample(self):
         await self.make_phone()
-        reply = await self.say("yes")
+        reply = await self.say("start learning")
         self.assertIn("biometric voiceprint", reply.speech)
         self.assertIsNone(self.runtime.active)
-        reply = await self.say("yes.")
+        reply = await self.say("Start learning.")
         self.assertIn("Sample 1 of 2", reply.speech)
         self.assertEqual(self.runtime.active.recording.count, 0)
         await self.say("a natural reading phrase")
         await asyncio.gather(*list(self.runtime.tasks))
         self.assertEqual(self.runtime.active.recording.count, 1)
+
+    async def test_launch_aliases_and_old_yes_never_replace_post_notice_consent(self):
+        await self.make_phone()
+        for text in ("learn my voice", "start voice learning", "yes", "yes please", "start learning please"):
+            reply = await self.say(text)
+            self.assertIn("To consent and begin, say start learning", reply.speech)
+            self.assertTrue(reply.continue_conversation)
+            self.assertIsNone(self.runtime.active)
+        reply = await self.say("Start learning!")
+        self.assertIn("Sample 1 of 2", reply.speech)
+        self.assertTrue(reply.continue_conversation)
+        self.assertEqual(self.runtime.active.recording.count, 0)
+        reply = await self.say("Cancel learning.")
+        self.assertIn("cancelled", reply.speech)
+        self.assertIn("deleted", reply.speech)
+        self.assertFalse(reply.continue_conversation)
+        self.assertIsNone(self.runtime.active)
+
+    async def test_cancel_learning_before_notice_does_not_start_anything(self):
+        await self.make_phone()
+        reply = await self.say("Cancel learning!")
+        self.assertFalse(reply.continue_conversation)
+        self.assertFalse(self.phone.flows)
+        self.assertIsNone(self.runtime.active)
 
     async def test_no_and_pause_are_not_training_and_normal_gateway_stays_normal(self):
         await self.make_phone()
@@ -49,7 +73,7 @@ class PhoneLearningTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(reply.continue_conversation)
         self.assertIsNone(self.runtime.active)
         await self.say("start")
-        await self.say("yes")
+        await self.say("start learning")
         handler = bridge_fixtures.fixtures.GuidedTests.gateway(self)
         await bridge_fixtures.fixtures.GuidedTests.stream(self, handler)
         handler.transcribe.assert_awaited_once()
@@ -58,10 +82,132 @@ class PhoneLearningTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("paused", reply.speech)
         self.assertIsNone(self.runtime.active)
 
+    async def test_pre_consent_cancel_does_not_delete_earlier_paused_samples(self):
+        await self.make_phone()
+        await self.say("start")
+        await self.say("start learning")
+        await self.say("a natural reading phrase")
+        await asyncio.gather(*list(self.runtime.tasks))
+        job = self.runtime.active
+        await self.say("pause learning")
+        await self.say("start")
+        reply = await self.say("Cancel learning,")
+        self.assertIn("No learning started", reply.speech)
+        self.assertIn("earlier paused recordings are unchanged", reply.speech)
+        self.assertEqual(job.recording.count, 1)
+
+    async def test_pause_keeps_samples_cancel_removes_only_bound_session(self):
+        await self.make_phone()
+        await self.say("start")
+        await self.say("start learning")
+        await self.say("a natural reading phrase")
+        await asyncio.gather(*list(self.runtime.tasks))
+        job = self.runtime.active
+        reply = await self.say("Please pause, learning!")
+        self.assertIn("paused", reply.speech)
+        self.assertEqual(job.recording.count, 1)
+        await self.say("start")
+        self.assertIn("Sample 2 of 2", (await self.say("start learning")).speech)
+        reply = await self.say("Cancel—learning, please.")
+        self.assertIn("cancelled", reply.speech)
+        self.assertIn("deleted", reply.speech)
+        self.assertEqual(job.recording.count, 0)
+        self.assertNotIn("pending", self.runtime.store.profiles[self.voice_id])
+        await self.say("start")
+        self.assertIn("Sample 1 of 2", (await self.say("start learning")).speech)
+
+    async def test_normalised_and_ambiguous_controls_are_never_samples(self):
+        controls = ("Pause, learning.", "  PAUSE\nlearning!", "Please stop voice learning.",
+                    "paws learning", "council learning", "don't cancel learning",
+                    "cancel learning cancel learning", "learn my voice", "“start learning”")
+        for text in controls:
+            with self.subTest(text=text):
+                await self.make_phone()
+                await self.say("start")
+                await self.say("start learning")
+                job = self.runtime.active
+                reply = await self.say(text)
+                self.assertIn("paused", reply.speech)
+                self.assertFalse(reply.continue_conversation)
+                self.assertEqual(job.recording.count, 0)
+                self.assertIsNone(self.runtime.active)
+                self.assertNotEqual(job.outcome, "cancelled")
+
+    async def test_all_guided_phrases_remain_reading_audio_not_controls(self):
+        from enrollment_prompts import PHRASES
+
+        from custom_components.voice_match_enrollment.phone_flow import control_category
+        for phrase in PHRASES:
+            with self.subTest(phrase=phrase):
+                self.assertEqual(control_category(phrase), "other")
+
+    async def test_lost_discard_response_only_queries_receipt_and_never_retries(self):
+        from custom_components.voice_match_enrollment.learning_bridge_protocol import (
+            BridgeError,
+        )
+        await self.make_phone()
+        await self.say("start")
+        await self.say("start learning")
+        call = self.bridge.call
+        async def lost(operation, user_id, data):
+            result = await call(operation, user_id, data)
+            if operation == "discard":
+                raise BridgeError("Synthetic lost reply")
+            return result
+        with patch.object(self.bridge, "call", side_effect=lost) as mocked:
+            reply = await self.say("cancel learning")
+            self.assertIn("could not be verified", reply.speech)
+            self.assertNotIn("deleted", reply.speech)
+            self.assertIn("deleted", (await self.say("cancel learning")).speech)
+            self.assertEqual([c.args[0] for c in mocked.await_args_list].count("discard"), 1)
+            self.assertNotIn("sample", [c.args[0] for c in mocked.await_args_list])
+
+    async def test_unavailable_discard_never_falls_back_to_broad_cleanup_or_training(self):
+        from custom_components.voice_match_enrollment.learning_bridge_protocol import (
+            BridgeError,
+        )
+        await self.make_phone()
+        await self.say("start")
+        await self.say("start learning")
+        call = self.bridge.call
+        async def unavailable(operation, user_id, data):
+            if operation == "discard":
+                raise BridgeError("Old peer does not implement discard")
+            return await call(operation, user_id, data)
+        with patch.object(self.bridge, "call", side_effect=unavailable) as mocked:
+            self.assertIn("could not be verified", (await self.say("cancel learning")).speech)
+            for text in ("status", "cancel learning", "a natural phrase", "start learning"):
+                self.assertIn("unverified", (await self.say(text)).speech)
+            self.assertEqual([c.args[0] for c in mocked.await_args_list].count("discard"), 1)
+            self.assertNotIn("sample", [c.args[0] for c in mocked.await_args_list])
+            self.assertNotIn("cleanup", [c.args[0] for c in mocked.await_args_list])
+            self.assertFalse(await self.phone.disconnect(self.connection))
+            flow = next(iter(self.phone.flows.values()))
+            flow.expires = 0
+            self.assertIn("unverified", (await self.say("start learning")).speech)
+            self.assertIn("needs attention", (await self.say("start", conversation_id="new-chat")).speech)
+            self.assertNotIn("cancel", [c.args[0] for c in mocked.await_args_list])
+        self.assertEqual(self.runtime.active.recording.count, 0)
+
+    async def test_stale_cancel_recording_cannot_delete_a_current_session(self):
+        from custom_components.voice_match_enrollment.phone_flow import PhoneFrame
+        await self.make_phone()
+        await self.say("start")
+        await self.say("start learning")
+        flow = next(iter(self.phone.flows.values()))
+        frame = PhoneFrame(self.connection, "alice", "phone-chat", flow.issued - 1,
+                           b"\x00" * 32000, "cancel learning", login_id=flow.login_id)
+        call = self.bridge.call
+        with patch.object(self.bridge, "call", wraps=call) as mocked:
+            self.assertIn("Nothing was deleted", (await self.phone.handle(frame)).speech)
+            self.assertNotIn("discard", [c.args[0] for c in mocked.await_args_list])
+        self.assertEqual(frame.audio, b"")
+        self.assertIsNotNone(self.runtime.active)
+
     async def test_different_connection_or_user_cannot_borrow_the_pending_permit(self):
         await self.make_phone()
         await self.say("start")
-        await self.say("yes")
+        await self.say("start learning")
         reply = await self.say("a phrase from another phone", connection=object())
         self.assertIn("biometric voiceprint", reply.speech)
         self.assertEqual(self.runtime.active.recording.count, 0)
@@ -74,10 +220,10 @@ class PhoneLearningTests(unittest.IsolatedAsyncioTestCase):
         await self.say("start")
         flow = next(iter(self.phone.flows.values()))
         flow.expires = 0
-        reply = await self.say("yes")
+        reply = await self.say("start learning")
         self.assertIn("biometric voiceprint", reply.speech)
         self.assertIsNone(self.runtime.active)
-        await self.say("yes")
+        await self.say("start learning")
         reply = await self.say("new chat", conversation_id="different-chat")
         self.assertIn("biometric voiceprint", reply.speech)
         self.assertIsNone(self.runtime.active)
@@ -85,7 +231,7 @@ class PhoneLearningTests(unittest.IsolatedAsyncioTestCase):
     async def test_short_clip_repeats_phrase_without_count_advancement(self):
         await self.make_phone()
         await self.say("start")
-        first = await self.say("yes")
+        first = await self.say("start learning")
         await self.say("short", audio=b"\x00" * 16000)
         await asyncio.gather(*list(self.runtime.tasks))
         next_reply = await self.say("status")
@@ -102,7 +248,7 @@ class PhoneLearningTests(unittest.IsolatedAsyncioTestCase):
     async def test_disconnect_pauses_only_its_own_session(self):
         await self.make_phone()
         await self.say("start")
-        await self.say("yes")
+        await self.say("start learning")
         self.assertTrue(await self.phone.disconnect(self.connection))
         self.assertIsNone(self.runtime.active)
         self.assertEqual(self.phone.flows, {})
@@ -114,7 +260,7 @@ class PhoneLearningTests(unittest.IsolatedAsyncioTestCase):
         self.runtime.store.assign(self.voice_id, "admin", bridge_fixtures.fixtures.ADMIN)
         await self.make_phone()
         await self.say("start", user_id="admin")
-        await self.say("yes", user_id="admin")
+        await self.say("start learning", user_id="admin")
         self.runtime.store.assign(self.voice_id, "alice", bridge_fixtures.fixtures.ADMIN)
         with self.assertRaises(BridgeError):
             await self.say("a phrase", user_id="admin")
@@ -128,14 +274,14 @@ class PhoneLearningTests(unittest.IsolatedAsyncioTestCase):
         await self.say("start")
         self.runtime.store.assign(self.voice_id, "bob", bridge_fixtures.fixtures.ADMIN)
         with self.assertRaises(BridgeError):
-            await self.say("yes")
+            await self.say("start learning")
         self.assertIsNone(self.runtime.active)
 
     async def test_stale_recording_cannot_use_current_permit(self):
         from custom_components.voice_match_enrollment.phone_flow import PhoneFrame
         await self.make_phone()
         await self.say("start")
-        await self.say("yes")
+        await self.say("start learning")
         flow = next(iter(self.phone.flows.values()))
         reply = await self.phone.handle(PhoneFrame(self.connection, "alice", "phone-chat",
             flow.issued - 1, b"\x00" * 32000, "phrase", login_id=f"synthetic-login-{id(self.connection)}"))
@@ -156,8 +302,8 @@ class PhoneLearningTests(unittest.IsolatedAsyncioTestCase):
             return result
         with patch.object(self.bridge, "call", side_effect=lost) as mocked:
             with self.assertRaises(BridgeError):
-                await self.say("yes")
-            reply = await self.say("yes")
+                await self.say("start learning")
+            reply = await self.say("start learning")
             self.assertIn("could not be verified", reply.speech)
             self.assertEqual(mocked.await_count, 1)
         self.assertEqual(self.runtime.active.recording.count, 0)
@@ -168,7 +314,7 @@ class PhoneLearningTests(unittest.IsolatedAsyncioTestCase):
         )
         await self.make_phone()
         await self.say("start")
-        await self.say("yes")
+        await self.say("start learning")
         call = self.bridge.call
         async def lost(operation, user_id, data):
             result = await call(operation, user_id, data)
@@ -187,7 +333,7 @@ class PhoneLearningTests(unittest.IsolatedAsyncioTestCase):
     async def test_cancelled_sample_call_cannot_reuse_its_permit(self):
         await self.make_phone()
         await self.say("start")
-        await self.say("yes")
+        await self.say("start learning")
         with (patch.object(self.bridge, "call", side_effect=asyncio.CancelledError),
               self.assertRaises(asyncio.CancelledError)):
             await self.say("phrase")
@@ -204,7 +350,7 @@ class PhoneLearningTests(unittest.IsolatedAsyncioTestCase):
         )
         await self.make_phone()
         await self.say("start")
-        await self.say("yes")
+        await self.say("start learning")
         next(user for user in self.users if user["id"] == "alice")["is_active"] = False
         with self.assertRaises(BridgeError):
             await self.say("phrase")
@@ -221,7 +367,7 @@ class PhoneLearningTests(unittest.IsolatedAsyncioTestCase):
         )
         await self.make_phone()
         await self.say("start")
-        await self.say("yes")
+        await self.say("start learning")
         with patch.object(self.bridge, "call", side_effect=BridgeError("Synthetic outage")):
             reply = await self.say("start", conversation_id="new-chat")
             self.assertIn("previous learning session needs attention", reply.speech)
@@ -233,7 +379,7 @@ class PhoneLearningTests(unittest.IsolatedAsyncioTestCase):
         await self.make_phone()
         login_id = "synthetic-stable-login"
         await self.say("start", login_id=login_id)
-        await self.say("yes", login_id=login_id)
+        await self.say("start learning", login_id=login_id)
         flow = next(iter(self.phone.flows.values()))
         self.assertIsNone(flow.permit)
         original = self.runtime.active.learning.permit
@@ -254,7 +400,7 @@ class PhoneLearningTests(unittest.IsolatedAsyncioTestCase):
         await self.make_phone()
         login_id = "synthetic-stable-login"
         await self.say("start", login_id=login_id)
-        await self.say("yes", login_id=login_id)
+        await self.say("start learning", login_id=login_id)
         started_at = time.monotonic()
         permit = await self.phone.prepare(self.connection, "alice", "phone-chat", login_id)
         self.runtime.active.learning.permit_expires = 0
@@ -269,7 +415,7 @@ class PhoneLearningTests(unittest.IsolatedAsyncioTestCase):
         from custom_components.voice_match_enrollment.phone_flow import PhoneFrame
         await self.make_phone()
         reply = await self.phone.handle(PhoneFrame(self.connection, "alice", "phone-chat",
-            time.monotonic(), b"\x00" * 32000, "yes"))
+            time.monotonic(), b"\x00" * 32000, "start learning"))
         self.assertIn("unavailable", reply.speech)
         self.assertFalse(self.phone.flows)
         self.assertIsNone(self.runtime.active)

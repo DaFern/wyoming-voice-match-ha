@@ -78,7 +78,7 @@ select a Voice Match gateway or an externally routed training engine as the
 ordinary source: provider metadata alone cannot attest its backend routing.
 
 The first microphone turn only returns a biometric-recording notice, even if it
-says "yes". A separate subsequent exact "yes" starts learning for the account's
+says "start learning". A separate subsequent exact "start learning" starts learning for the account's
 uniquely assigned existing profile. Consent expires after 120 seconds. No profile
 is created or selected by spoken name; even administrators cannot train someone
 else's profile through this phone path. The backend rechecks ownership at begin
@@ -133,7 +133,7 @@ persistent identifier or last-user tracking is introduced. These categories ente
 normal HA logs if INFO is enabled and follow their normal retention policy.
 
 - `stage=stt result=ready control=...`: control transcription completed. Categories
-  are `yes`, `stop`, `status`, `other`, or diagnostic-only `yes_punctuation`,
+  are `start_learning`, `stop`, `status`, `other`, or diagnostic-only `start_learning_punctuation`,
   `stop_punctuation` and `notice_like`. Punctuation categories mean outer
   punctuation prevented the current exact parser from matching; they do **not**
   broaden accepted consent/cancellation. `notice_like` matches known notice wording,
@@ -177,7 +177,7 @@ an overlong/interrupted stream into an accepted partial clip by swallowing its
 exception. A source that consumes no audio cannot supply a successful handoff.
 
 The initial tests reproduced the reconnect blocker: after closing the socket
-between notice and reply, even "yes" on the same account/chat gets a fresh notice.
+between notice and reply, even "start learning" on the same account/chat gets a fresh notice.
 That was the initial intentional fail-closed behaviour. The revised development
 binding below supersedes it for completed turns, not for interrupted captures.
 Current upstream Android `WebSocketCoreImpl` closes its connection when the last
@@ -227,7 +227,7 @@ exact native task, socket, account and chat; only guided state can span sockets.
 Overlapping captures in the same scope are refused even on separate sockets.
 The flow cap, 120-second consent window and 900-second learning lifetime remain.
 An account's other logins, a changed chat or expired scope need a fresh notice
-and separate yes. Ownership is still checked independently by the paired backend.
+and separate start learning. Ownership is still checked independently by the paired backend.
 
 Only a successfully handled, still-authenticated agent turn marks the connection
 as ready for follow-up. Its subsequent disconnect detaches the old socket but

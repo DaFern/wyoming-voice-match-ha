@@ -46,6 +46,11 @@ class Backend:
         if operation == "cancel":
             self.active = False
             return {"outcome": "paused"}
+        if operation == "discard":
+            assert data["confirm"] is True
+            self.active = False
+            self.count = 0
+            return {"outcome": "cancelled"}
         assert data["session_token"] == "synthetic-session"
         if operation == "permit":
             self.permit_serial += 1
@@ -85,8 +90,12 @@ async def phone(hass, hass_ws_client, hass_admin_user, phone_probe):  # noqa: F8
         async def async_process_audio_stream(self, metadata, stream):
             clip = b"".join([chunk async for chunk in stream])
             source_calls.append(clip)
-            text = {1: "start", 2: "Yes.", 3: "A varied natural reading phrase", 4: "Pause",
-                    5: "No", 6: "status", 7: "No,", 8: NOTICE}[clip[0]]
+            text = {1: "start", 2: "Start learning.", 3: "A varied natural reading phrase", 4: "Pause",
+                    5: "No", 6: "status", 7: "No,", 8: NOTICE,
+                    9: "Yes", 10: "Start voice learning", 11: "Learn my voice",
+                    12: "Cancel learning", 13: "Pause, learning.",
+                    14: "Please cancel learning!", 15: "Paws learning",
+                    16: "Don't cancel learning", 17: "Cancel learning cancel learning"}[clip[0]]
             return stt.SpeechResult(text, stt.SpeechResultState.SUCCESS)
 
     source = Whisper()
@@ -171,12 +180,51 @@ async def test_phone_uses_real_learning_entities_and_only_post_consent_audio_is_
     assert len([call for call in phone["backend"].calls if call[0] == "sample"]) == 2
 
 
+async def test_native_launch_phrases_and_yes_are_not_consent(phone):
+    assert "biometric voiceprint" in speech(await phone["run"](2))
+    assert not phone["backend"].active
+    for marker in (9, 10, 11, 8):
+        assert "To consent and begin, say start learning" in speech(await phone["run"](marker))
+        assert not phone["backend"].active
+    assert "Sample 1 of 2" in speech(await phone["run"](2))
+    assert phone["backend"].count == 0
+    assert "cancelled" in speech(await phone["run"](12))
+    assert phone["backend"].count == 0
+    assert not phone["backend"].active
+
+
 async def test_native_pause_is_not_submitted_as_a_sample(phone):
     await phone["run"](1)
     await phone["run"](2)
     assert "paused" in speech(await phone["run"](4))
     assert phone["backend"].count == 0
     assert not phone["backend"].active
+
+
+@pytest.mark.parametrize("marker", [13, 15, 16, 17])
+async def test_native_normalised_or_ambiguous_controls_pause_without_upload(phone, marker):
+    await phone["run"](1)
+    await phone["run"](2)
+    assert "Sample 2 of 2" in speech(await phone["run"](3))
+    assert "paused" in speech(await phone["run"](marker))
+    assert phone["backend"].count == 1
+    assert len([call for call in phone["backend"].calls if call[0] == "sample"]) == 1
+    assert not [call for call in phone["backend"].calls if call[0] == "discard"]
+
+
+async def test_native_cancel_discards_but_pause_preserves_samples(phone):
+    await phone["run"](1)
+    await phone["run"](2)
+    await phone["run"](3)
+    assert "paused" in speech(await phone["run"](13))
+    assert phone["backend"].count == 1
+    assert "biometric voiceprint" in speech(await phone["run"](1))
+    assert "Sample 2 of 2" in speech(await phone["run"](2))
+    assert "deleted" in speech(await phone["run"](14))
+    assert phone["backend"].count == 0
+    assert not phone["backend"].active
+    assert len([call for call in phone["backend"].calls if call[0] == "sample"]) == 1
+    assert len([call for call in phone["backend"].calls if call[0] == "discard"]) == 1
 
 
 async def test_other_login_cannot_train_even_with_the_same_user_and_chat(hass, hass_ws_client, hass_admin_user, phone):
@@ -259,16 +307,14 @@ async def test_native_diagnostics_distinguish_repeated_notice_from_recognised_no
     logger = "custom_components.voice_match_enrollment.phone_diagnostics"
     with caplog.at_level(logging.INFO, logger=logger):
         await phone["run"](1)
-        assert "biometric voiceprint" in speech(await phone["run"](7))
         assert "biometric voiceprint" in speech(await phone["run"](8))
-        assert "paused" in speech(await phone["run"](5))
+        assert "No learning started" in speech(await phone["run"](7))
     records = [entry for entry in caplog.records if entry.name == logger]
     output = "\n".join(entry.getMessage() for entry in records)
-    assert "control=stop_punctuation continuity=same_scope phase=consent" in output
     assert "control=notice_like continuity=same_scope phase=consent" in output
     assert "control=stop continuity=same_scope phase=consent" in output
     assert "result=notice_repeat" in output
-    assert "result=stop_paused" in output
+    assert "result=cancel_before_start" in output
     assert "stage=stt result=ready" in output
     assert "audio_ms=1000" in output
     login_id = next(iter(phone["runtime"].connections.values()))[0].refresh_token_id
@@ -324,7 +370,7 @@ async def test_source_can_endpoint_without_waiting_for_client_eof(phone):
         return stt.SpeechResult("No", stt.SpeechResultState.SUCCESS)
     with patch.object(phone["source"], "async_process_audio_stream", side_effect=endpoint):
         events = await asyncio.wait_for(phone["run"](5, send_eof=False), 1)
-    assert "has not started" in speech(events)
+    assert "no active voice learning session" in speech(events)
     assert b"".join(consumed) == bytes([5, 0]) * 16000
     assert not phone["runtime"].frames.pending
     assert not phone["backend"].active
@@ -371,7 +417,7 @@ async def test_streaming_still_rejects_overlong_audio_even_if_source_swallows_er
         except ValueError:
             if not swallow_limit:
                 raise
-        return stt.SpeechResult("Yes", stt.SpeechResultState.SUCCESS)
+        return stt.SpeechResult("Start learning", stt.SpeechResultState.SUCCESS)
     with patch.object(phone["source"], "async_process_audio_stream", side_effect=source):
         await phone["run"](2, sample_count=176000, expect_error=True)
     assert not phone["runtime"].frames.pending
@@ -411,14 +457,14 @@ async def test_source_upload_child_task_does_not_change_native_handoff_owner(pho
         assert audio == bytes([5, 0]) * 16000
         return stt.SpeechResult("No", stt.SpeechResultState.SUCCESS)
     with patch.object(phone["source"], "async_process_audio_stream", side_effect=source):
-        assert "has not started" in speech(await phone["run"](5))
+        assert "no active voice learning session" in speech(await phone["run"](5))
     assert not phone["runtime"].frames.pending
     assert not phone["backend"].active
 
 
 async def test_source_cannot_accept_audio_it_never_consumed(phone):
     async def source(metadata, stream):
-        return stt.SpeechResult("Yes", stt.SpeechResultState.SUCCESS)
+        return stt.SpeechResult("Start learning", stt.SpeechResultState.SUCCESS)
     with patch.object(phone["source"], "async_process_audio_stream", side_effect=source):
         await phone["run"](2, expect_error=True)
     assert not phone["runtime"].frames.pending
@@ -491,7 +537,7 @@ async def test_no_after_notice_reconnect_cancels_without_training(hass, hass_ws_
     await phone["run"](1)
     await close_phone_turn(hass, phone, phone["client"])
     second = await hass_ws_client(hass)
-    assert "paused" in speech(await phone["run"](5, selected_client=second))
+    assert "No learning started" in speech(await phone["run"](5, selected_client=second))
     assert not phone["runtime"].controller.flows
     assert not [call for call in phone["backend"].calls if call[0] in {"begin", "sample"}]
 
@@ -543,7 +589,7 @@ async def test_login_revocation_during_source_processing_discards_recording(phon
         async for _ in stream:
             pass
         revoked = True
-        return stt.SpeechResult("Yes", stt.SpeechResultState.SUCCESS)
+        return stt.SpeechResult("Start learning", stt.SpeechResultState.SUCCESS)
     with (patch.object(runtime.hass.auth, "async_get_refresh_token", side_effect=lookup),
           patch.object(phone["source"], "async_process_audio_stream", side_effect=source)):
         await phone["run"](2, expect_error=True)

@@ -172,6 +172,9 @@ class Runtime:
         opts = dict(self.options, enrollment_speaker=voice_id, enrollment_session=session)
         recording = Recording(opts, self.store.root, candidate_validator=validate_voiceprint)
         self.active = Job(voice_id, actor["id"], recording, learning)
+        # Every begin, including management/resume, supersedes older deletion
+        # capabilities for this profile even when it reuses the pending directory.
+        self.learning_bridge.latest_jobs[voice_id] = self.active
         if recording.complete.exists() or recording.count >= opts["enrollment_samples"]:
             self.active.processing = True
             self.spawn(self.ingest(self.active, b""))
@@ -236,6 +239,44 @@ class Runtime:
                 job.error = "Processing failed. Your samples are kept where possible; retry or ask an administrator"
             finally:
                 job.processing = False
+
+    async def discard_learning(self, actor, data, *, bridge_boot):
+        """Discard one unfinished generation, never a newer job or installed voice."""
+        if set(data) != {"source", "session_token", "confirm"} or data.get("confirm") is not True:
+            raise ValueError("Explicit session-discard confirmation required")
+        if self.active and self.active.processing:
+            raise ValueError("Please wait for voice processing to finish")
+        async with self.lock:
+            if bridge_boot != self.learning_bridge.boot:
+                raise Denied("Learning bridge pairing changed")
+            job = self.learning_bridge.job(self, actor, data)
+            if self.learning_bridge.latest_jobs.get(job.voice_id) is not job:
+                raise Denied("Learning session was superseded")
+            if job.outcome == "cancelled":
+                return {"outcome": "cancelled"}
+            if job.outcome == "complete" or job.recording.complete.exists():
+                raise ValueError("Completed voice learning cannot be discarded")
+            if job.processing or (self.active is not None and self.active is not job):
+                raise ValueError("Another operation is in progress")
+            profile = self.store.get(job.voice_id, actor)
+            session = job.recording.options["enrollment_session"]
+            if profile.get("pending") != session:
+                raise Denied("Pending learning session changed")
+            job.learning.permit = ""
+            self.active = job
+            try:
+                self.store.discard_session(job.voice_id, session)
+                profile.pop("pending", None)
+                self.store.save()
+            except Exception:
+                # Do not claim complete deletion or permit a fresh begin over
+                # a partial/uncertain cleanup. Management must resolve it.
+                job.error = "Session cleanup needs attention; no more samples can be recorded"
+                job.outcome = "attention"
+                raise
+            job.outcome = "cancelled"
+            self.active = None
+            return {"outcome": "cancelled"}
 
     async def action(self, actor, data, users, *, bridge_boot=None):
         if self.active and self.active.processing:

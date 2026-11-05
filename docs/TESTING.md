@@ -13,7 +13,10 @@ overlap across sockets; completed turns may reconnect, but interrupted captures
 invalidate audio/permits and require fresh consent. Fresh upload permits are
 issued before each recording and cannot be renewed after an expired recording.
 
-Native tests exercise a new socket on each notice/yes/sample/pause turn, no after
+See [current phone control safeguards](PHONE_CONTROL_FIXES.md) for the later
+pause/discard split, normalised control matching and real-device limitations.
+
+Native tests exercise a new socket on each notice/start learning/sample/pause turn, no after
 notice reconnect, other logins on the same account, changed chats, expired consent,
 missing/revoked/expired/system/long-lived credentials, actual auth-session removal,
 revocation during STT and before agent/mutating operations, concurrent sockets,
@@ -103,7 +106,7 @@ Targeted phone/companion/bridge Ruff, Python AST/JSON parsing and diff checks pa
 new lint findings; unrelated cleanup was not included.
 
 Native phone tests load the actual entities with synthetic Whisper/provider and
-backend boundaries. They cover notice then separate yes, saved-count completion,
+backend boundaries. They cover notice then separate start learning, saved-count completion,
 pause exclusion, other-connection isolation, intercepted/STT-only/typed-marker
 cleanup, disconnect pause, missing/recursive source rejection and retained valid
 source defaults. Unit tests exercise the real encrypted loopback bridge with

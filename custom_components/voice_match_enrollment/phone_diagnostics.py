@@ -11,8 +11,9 @@ RESULTS = {
     "consumed", "discarded", "disconnect", "received", "notice_new",
     "notice_repeat", "stop_no_session", "stop_paused", "stop_unverified",
     "stale_turn", "closing", "prepare",
+    "cancel_before_start", "cancel_discarded", "cancel_unverified", "control_guard_paused",
 }
-CONTROLS = {"none", "yes", "stop", "status", "yes_punctuation", "stop_punctuation", "notice_like", "other"}
+CONTROLS = {"none", "start_learning", "stop", "cancel", "uncertain_control", "status", "start_learning_punctuation", "notice_like", "other"}
 CONTINUITY = {"none", "new_scope", "same_scope", "expired_scope", "chat_changed", "connection_changed", "account_changed"}
 PHASES = {"none", "consent", "sample", "processing", "attention"}
 

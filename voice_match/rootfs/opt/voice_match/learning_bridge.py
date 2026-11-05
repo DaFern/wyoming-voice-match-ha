@@ -33,6 +33,7 @@ class LearningBridge:
         self.seen = {}
         self.sessions = {}
         self.own_sessions = set()
+        self.latest_jobs = {}
 
     def view(self):
         return {"paired": self.key is not None}
@@ -62,6 +63,7 @@ class LearningBridge:
         self.seen.clear()
         self.sessions.clear()
         self.own_sessions.clear()
+        self.latest_jobs.clear()
         return {"learning_bridge_key": key} if key else {}
 
     def receive(self, token):
@@ -114,6 +116,10 @@ class LearningBridge:
                 self.own_sessions.add(result["session_token"])
             return result
         job = self.job(runtime, actor, data)
+        if operation == "discard":
+            if set(data) != {"source", "session_token", "confirm"} or data.get("confirm") is not True:
+                raise ValueError("Explicit session-discard confirmation required")
+            return await runtime.discard_learning(actor, data, bridge_boot=boot)
         headers = {"X-Learning-Source": data.get("source"), "X-Learning-Session": data.get("session_token")}
         if operation == "state":
             return {"id": job.voice_id, "outcome": job.outcome, "processing": job.processing,

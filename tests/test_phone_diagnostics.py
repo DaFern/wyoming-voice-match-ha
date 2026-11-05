@@ -14,9 +14,10 @@ from custom_components.voice_match_enrollment.phone_flow import (
 
 class DiagnosticsTests(unittest.TestCase):
     def test_classifications_do_not_echo_transcripts(self):
-        cases = {"Yes.": "yes", " NO! ": "stop", "pause learning": "stop",
-                 "check status": "status", "No,": "stop_punctuation",
-                 "“yes”": "yes_punctuation", NOTICE: "notice_like",
+        cases = {"Start learning.": "start_learning", " NO! ": "stop", "pause learning": "stop",
+                 "check status": "status", "No,": "stop", "Please cancel learning.": "cancel",
+                 "“start learning”": "start_learning_punctuation", NOTICE: "notice_like",
+                  "yes": "other", "start voice learning": "uncertain_control", "learn my voice": "uncertain_control",
                  "yes please": "other", "unrelated private reading phrase": "other"}
         for text, category in cases.items():
             with self.subTest(category=category):
@@ -66,24 +67,24 @@ class FlowDiagnosticTests(unittest.IsolatedAsyncioTestCase):
         with self.assertLogs(LOGGER, level="INFO") as logs:
             await self.phone.handle(frame)
             reply = await self.phone.handle(self.frame("no"))
-        self.assertIn("paused", reply.speech)
+        self.assertIn("No learning started", reply.speech)
         self.assertFalse(self.phone.flows)
         output = "\n".join(logs.output)
         self.assertIn("control=other continuity=new_scope", output)
         self.assertIn("control=stop continuity=same_scope phase=consent", output)
-        self.assertIn("result=stop_paused", output)
+        self.assertIn("result=cancel_before_start", output)
         self.assertNotIn("PRIVATE", repr([entry.__dict__ for entry in logs.records]))
 
     async def test_punctuation_and_notice_like_categories_do_not_change_consent(self):
         with self.assertLogs(LOGGER, level="INFO") as logs:
             await self.phone.handle(self.frame("start"))
-            for text in ("No,", "“yes”", NOTICE):
+            for text in ("“start learning”", NOTICE):
                 reply = await self.phone.handle(self.frame(text))
                 self.assertEqual(reply.speech, NOTICE)
         output = "\n".join(logs.output)
-        for category in ("stop_punctuation", "yes_punctuation", "notice_like"):
+        for category in ("start_learning_punctuation", "notice_like"):
             self.assertIn(f"control={category}", output)
-        self.assertEqual(sum("result=notice_repeat" in line for line in logs.output), 3)
+        self.assertEqual(sum("result=notice_repeat" in line for line in logs.output), 2)
         self.assertNotIn(NOTICE, output)
         flow = next(iter(self.phone.flows.values()))
         self.assertEqual(flow.phase, "consent")

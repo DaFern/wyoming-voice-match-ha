@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.4.2
+
+- Separate phone controls: “pause learning” keeps unfinished samples; “cancel
+  learning” after consent discards only that session's recordings and staging
+  hardlinks. The installed voiceprint, unrelated sessions and backups are kept.
+  Cancelling before consent starts no learning and leaves earlier paused samples
+  unchanged. The management Pause button remains non-destructive.
+- Normalise stop/cancel punctuation and spacing and accept polite forms. Exclude
+  ambiguous stop-like speech, repeated consent and notice-like playback from
+  sample uploads. Ambiguous controls pause without deleting recordings.
+- Require a separate post-notice “start learning”; keep automatic listening and
+  guided sample progression. Voice matching thresholds and pairing are unchanged.
+- Guard deletion with current ownership, source/session capability, latest-job and
+  pending-session checks. Refuse processing/completed-session deletion. Uncertain
+  cleanup blocks recording and is not blindly retried or reported as successful.
+- Requires the matching companion phone_flow.py and phone_diagnostics.py update
+  and a separately approved Core restart. Updating this add-on alone does not
+  activate the new spoken controls. Do not resume potentially contaminated test
+  recordings. See docs/PHONE_CONTROL_FIXES.md for acceptance limits.
+- Exact release snapshot: 163 unit tests passed, 4 skipped, and 55 native HA
+  tests passed on synthetic audio/transport boundaries. The real
+  Whisper misrecognition cause, phone endpointer and TTS echo exclusion remain
+  unproven; do not treat parser fixtures as real-device acceptance. Automatic
+  launcher prototypes are not included in this release.
+
 ## 0.4.1
 
 - Add an administrator-only Learning companion pairing section with confirmed

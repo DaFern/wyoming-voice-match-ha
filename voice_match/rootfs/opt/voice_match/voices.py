@@ -125,6 +125,42 @@ class VoiceStore:
     def recording_bytes(self, voice_id):
         return sum(path.stat().st_size for path in self._files(voice_id))
 
+    def discard_session(self, voice_id, session):
+        """Narrow unfinished-session removal, including only its staging hardlinks."""
+        safe_id(voice_id)
+        if not isinstance(session, str) or re.fullmatch(r"[0-9a-f]{32}", session) is None:
+            raise ValueError("Invalid learning session")
+        directory = self.root / "enrollment" / voice_id / session
+        staging = self.root / "enrollment_work" / voice_id
+        for path in (self.root, directory.parent.parent, directory.parent, directory,
+                     staging.parent, staging):
+            if path.is_symlink():
+                raise ValueError("Unsafe recording directory; discard refused")
+        if (directory / "COMPLETE").exists():
+            raise ValueError("Completed learning cannot be discarded")
+        paths = []
+        if directory.exists():
+            for base, directories, files in os.walk(directory, followlinks=False):
+                if any((Path(base) / name).is_symlink() for name in [*directories, *files]):
+                    raise ValueError("Unsafe recording link; discard refused")
+                for name in files:
+                    path = Path(base) / name
+                    if path.suffix not in {".wav", ".part", ".npy"} or not path.is_file():
+                        raise ValueError("Unexpected session file; discard refused")
+                    paths.append(path)
+        # Never remove staging files by filename alone: they could belong to a
+        # different generation. Match this session's actual filesystem objects.
+        inodes = {(path.stat().st_dev, path.stat().st_ino) for path in paths}
+        links = []
+        if staging.exists():
+            for path in staging.iterdir():
+                if path.is_symlink():
+                    raise ValueError("Unsafe staging link; discard refused")
+                if path.is_file() and (path.stat().st_dev, path.stat().st_ino) in inodes:
+                    links.append(path)
+        for path in [*links, *paths]:
+            path.unlink()
+
     def cleanup(self, voice_id):
         # Removes BOTH hard links created by legacy enrolment. Never touches
         # /data/voiceprints, other people, models, or old external backups.
