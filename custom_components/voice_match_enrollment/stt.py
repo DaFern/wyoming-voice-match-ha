@@ -11,7 +11,8 @@ from homeassistant.components.websocket_api.connection import (
 from homeassistant.helpers import chat_session
 
 from . import DOMAIN
-from .phone_flow import MARKER
+from .phone_diagnostics import record
+from .phone_flow import MARKER, control_category
 
 
 def control_source(hass, entity_id):
@@ -68,42 +69,55 @@ class PhoneLearningStt(stt.SpeechToTextEntity):
     async def async_process_audio_stream(self, metadata, stream):
         owner = None
         audio = bytearray()
+        stage = "binding"
         try:
             connection = current_connection.get()
             session = chat_session.current_session.get()
             if not isinstance(connection, ActiveConnection) or connection.hass is not self.hass or session is None:
                 raise ValueError("An authenticated phone pipeline is required")
+            stage = "account_or_metadata"
             user = await self.hass.auth.async_get_user(connection.user.id)
             if user is None or not user.is_active or user.system_generated or not self.check_metadata(metadata):
                 raise ValueError("Phone caller unavailable")
+            stage = "reserve"
             self.runtime.watch(connection)
             owner = self.runtime.frames.reserve(connection, user.id, session)
+            stage = "source"
             source = control_source(self.hass, self.runtime.source_id)
             language = next(language for language in ("en", "en-GB", "en-US") if language in source.supported_languages)
             source_metadata = replace(metadata, language=language)
+            stage = "source_metadata"
             if not source.check_metadata(source_metadata):
                 raise ValueError("Whisper does not support the recording format")
             async with asyncio.timeout(45):
+                stage = "capture"
                 async for chunk in stream:
                     if not isinstance(chunk, bytes) or len(audio) + len(chunk) > 320000:
+                        stage = "audio_limit"
                         raise ValueError("Recording exceeds ten seconds")
                     audio.extend(chunk)
                 if not audio or len(audio) % 2:
+                    stage = "audio_format"
                     raise ValueError("Unsupported PCM recording")
                 clip = bytes(audio)
                 async def replay():
                     yield clip
+                stage = "transcription"
                 result = await source.async_process_audio_stream(source_metadata, replay())
             if (result.result != stt.SpeechResultState.SUCCESS or not isinstance(result.text, str)
                     or not result.text.strip() or len(result.text) > 5000):
                 raise ValueError("Control transcription unavailable")
+            stage = "handoff"
             self.runtime.frames.put(owner, clip, result.text)
+            record("stt", "ready", control=control_category(result.text), audio_bytes=len(audio))
             return stt.SpeechResult(MARKER, stt.SpeechResultState.SUCCESS)
         except asyncio.CancelledError:
+            record("stt", "cancelled", audio_bytes=len(audio))
             if owner is not None:
                 self.runtime.frames.discard(owner)
             raise
         except Exception:  # noqa: BLE001 - Do not leak audio, peer errors or credentials into pipeline logs.
+            record("stt", stage, audio_bytes=len(audio))
             if owner is not None:
                 self.runtime.frames.discard(owner)
             return stt.SpeechResult(None, stt.SpeechResultState.ERROR)

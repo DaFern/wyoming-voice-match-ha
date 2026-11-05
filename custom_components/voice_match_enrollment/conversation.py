@@ -5,6 +5,7 @@ from homeassistant.components.websocket_api.connection import current_connection
 from homeassistant.helpers import chat_session, intent
 
 from . import DOMAIN
+from .phone_diagnostics import record
 from .phone_flow import MARKER, PhoneReply
 
 
@@ -32,15 +33,18 @@ class PhoneLearningAgent(conversation.ConversationEntity):
         try:
             connection = current_connection.get()
             if user_input.text != MARKER or not user_input.context.user_id or connection is None:
+                record("agent", "binding")
                 return self._reply(user_input, reply)
             frame = self.runtime.frames.take(connection, user_input.context.user_id,
                 chat_session.current_session.get(), user_input.conversation_id)
             user = await self.hass.auth.async_get_user(user_input.context.user_id)
             if (frame is None or user is None or not user.is_active or user.system_generated
                     or connection.user.id != user.id):
+                record("agent", "account_or_metadata" if frame is not None else "missing")
                 return self._reply(user_input, reply)
             reply = await self.runtime.controller.handle(frame)
         except Exception:  # noqa: BLE001 - Keep peer/account/biometric details out of native error traces.
+            record("agent", "failed")
             if frame is not None:
                 flow = self.runtime.controller.flows.get(self.runtime.controller.key(frame))
                 if flow is not None:

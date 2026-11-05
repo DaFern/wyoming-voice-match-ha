@@ -2,6 +2,7 @@
 
 import asyncio
 
+from .phone_diagnostics import record
 from .phone_flow import PhoneController
 from .phone_handoff import PhoneHandoffs
 
@@ -24,6 +25,7 @@ class PhoneRuntime:
         key = ("voice_match_enrollment_phone", self.entry.entry_id)
         self.connections[id(connection)] = (connection, key)
         def disconnect():
+            record("connection", "disconnect")
             self.connections.pop(id(connection), None)
             self.frames.drop_connection(connection)  # Drop raw audio synchronously.
             if not self.hass.is_stopping:

@@ -4,6 +4,7 @@ import asyncio
 import time
 from dataclasses import dataclass
 
+from .phone_diagnostics import record
 from .phone_flow import PhoneFrame
 
 
@@ -47,6 +48,7 @@ class PhoneHandoffs:
         task = asyncio.current_task()
         pending = self.pending.pop(task, None)
         if pending is None:
+            record("handoff", "missing")
             return None
         pending.timer.cancel()
         valid = (pending.connection is connection and pending.user_id == user_id
@@ -55,6 +57,8 @@ class PhoneHandoffs:
                  and self.clock() - pending.started_at < 60)
         if not valid and pending.frame is not None:
             pending.frame.audio, pending.frame.text = b"", ""
+        record("handoff", "consumed" if valid else "expired"
+               if self.clock() - pending.started_at >= 60 else "binding_mismatch")
         # The connection stays reserved until the native pipeline task ends,
         # including its TTS stage. Overlapping phone turns fail closed.
         return pending.frame if valid else None
@@ -62,6 +66,7 @@ class PhoneHandoffs:
     def discard(self, task):
         pending = self.pending.pop(task, None)
         if pending is not None:
+            record("handoff", "expired" if self.clock() - pending.started_at >= 60 else "discarded")
             pending.timer.cancel()
             if pending.frame is not None:
                 pending.frame.audio, pending.frame.text = b"", ""

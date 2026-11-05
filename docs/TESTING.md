@@ -1,5 +1,24 @@
 # Validation and acceptance checklist
 
+## Repeated consent notice diagnostics (development only)
+
+Local full-suite validation: **141 unit tests passed, 4 upstream-engine tests
+skipped** (145 discovered); **24 native HA 2026.10.0 tests passed**. Targeted
+Ruff, Python AST parsing and diff checks passed.
+
+The companion adds INFO-level allowlisted control/duration/scope-continuity logs,
+not a cancellation fix. Unit tests check category matching, unchanged punctuation
+and consent behaviour, scope changes/expiry and removal of sensitive values from
+the complete log-record payload. Handoff tests distinguish rejection/expiry/missing
+clips without logging their contents. Native pipeline tests exercise recognised
+"no", punctuation-rejected "No,", notice-like transcription, STT-only cleanup,
+typed-marker denial and a source exception containing a synthetic sensitive value.
+
+No live diagnostic deployment, logger change, recording, publication or restart
+was performed. The phone report is not yet explained; first-turn spoken notice and
+follow-up listening were observed by the user, but cancellation acceptance failed.
+See [diagnostic interpretation and privacy limits](PHONE_PIPELINE_FEASIBILITY.md#repeated-consent-notice-diagnostics-development-not-deployed).
+
 ## Learning companion pairing page (0.4.1, live acceptance pending)
 
 Local full-suite validation: **135 unit tests passed, 4 upstream-engine tests

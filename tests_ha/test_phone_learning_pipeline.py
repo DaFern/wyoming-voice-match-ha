@@ -16,7 +16,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from test_learning_pipeline_feasibility import phone_probe  # noqa: F401 - pytest fixture
 
 from custom_components.voice_match_enrollment import DOMAIN
-from custom_components.voice_match_enrollment.phone_flow import MARKER
+from custom_components.voice_match_enrollment.phone_flow import MARKER, NOTICE
 
 
 @dataclass
@@ -75,7 +75,8 @@ async def phone(hass, hass_ws_client, hass_admin_user, phone_probe):  # noqa: F8
         async def async_process_audio_stream(self, metadata, stream):
             clip = b"".join([chunk async for chunk in stream])
             source_calls.append(clip)
-            text = {1: "start", 2: "Yes.", 3: "A varied natural reading phrase", 4: "Pause", 5: "No", 6: "status"}[clip[0]]
+            text = {1: "start", 2: "Yes.", 3: "A varied natural reading phrase", 4: "Pause",
+                    5: "No", 6: "status", 7: "No,", 8: NOTICE}[clip[0]]
             return stt.SpeechResult(text, stt.SpeechResultState.SUCCESS)
 
     source = Whisper()
@@ -113,7 +114,7 @@ async def phone(hass, hass_ws_client, hass_admin_user, phone_probe):  # noqa: F8
         assert created["success"], created
         pipeline_id = created["result"]["id"]
         sequence = 10
-        async def run(marker, *, selected_client=None, end_stage="intent", chat="phone-chat"):
+        async def run(marker, *, selected_client=None, end_stage="intent", chat="phone-chat", expect_error=False):
             nonlocal sequence
             current = selected_client or client
             sequence += 1
@@ -132,7 +133,8 @@ async def phone(hass, hass_ws_client, hass_admin_user, phone_probe):  # noqa: F8
                     await current.send_bytes(bytes([handler]) + bytes([marker, 0]) * 16000)
                     await current.send_bytes(bytes([handler]))
                 if event["type"] == "run-end":
-                    assert not [item for item in events if item["type"] == "error"], events
+                    errors = [item for item in events if item["type"] == "error"]
+                    assert bool(errors) == expect_error, events
                     return events
         yield {"run": run, "client": client, "entry": entry, "backend": backend, "agent": agent,
                "engine": engine, "source": source, "source_calls": source_calls,
@@ -233,4 +235,57 @@ async def test_native_connection_close_pauses_its_learning_session(hass, phone):
     assert not phone["runtime"].connections
     assert not phone["runtime"].frames.pending
     assert not phone["runtime"].controller.flows
+    assert not phone["backend"].active
+
+
+async def test_native_diagnostics_distinguish_repeated_notice_from_recognised_no(phone, caplog):
+    import logging
+    logger = "custom_components.voice_match_enrollment.phone_diagnostics"
+    with caplog.at_level(logging.INFO, logger=logger):
+        await phone["run"](1)
+        assert "biometric voiceprint" in speech(await phone["run"](7))
+        assert "biometric voiceprint" in speech(await phone["run"](8))
+        assert "paused" in speech(await phone["run"](5))
+    records = [entry for entry in caplog.records if entry.name == logger]
+    output = "\n".join(entry.getMessage() for entry in records)
+    assert "control=stop_punctuation continuity=same_scope phase=consent" in output
+    assert "control=notice_like continuity=same_scope phase=consent" in output
+    assert "control=stop continuity=same_scope phase=consent" in output
+    assert "result=notice_repeat" in output
+    assert "result=stop_paused" in output
+    assert "stage=stt result=ready" in output
+    assert "audio_ms=1000" in output
+    for private in (phone["entry"].data["key"], phone["backend"].user_id, "phone-chat", NOTICE, "No,"):
+        assert private not in repr([entry.__dict__ for entry in records])
+    assert not [call for call in phone["backend"].calls if call[0] in {"begin", "sample"}]
+
+
+async def test_native_diagnostics_report_stt_only_discard_and_typed_marker_missing(phone, caplog):
+    import logging
+    logger = "custom_components.voice_match_enrollment.phone_diagnostics"
+    with caplog.at_level(logging.INFO, logger=logger):
+        await phone["run"](3, end_stage="stt")
+        await phone["client"].send_json({"id": 100, "type": "conversation/process", "text": MARKER,
+            "agent_id": phone["agent"].entity_id, "conversation_id": "phone-chat", "language": "en"})
+        result = await phone["client"].receive_json()
+        assert result["success"]
+    output = "\n".join(entry.getMessage() for entry in caplog.records if entry.name == logger)
+    assert "stage=handoff result=discarded" in output
+    assert "stage=handoff result=missing" in output
+    assert "stage=agent result=missing" in output
+    assert not phone["backend"].active
+
+
+async def test_native_diagnostics_report_transcription_failure_without_peer_error_or_clip(phone, caplog):
+    import logging
+    logger = "custom_components.voice_match_enrollment.phone_diagnostics"
+    private = "PRIVATE-peer-transcript-and-credentials"
+    with (caplog.at_level(logging.INFO, logger=logger),
+          patch.object(phone["source"], "async_process_audio_stream", side_effect=RuntimeError(private))):
+        await phone["run"](1, expect_error=True)
+    output = "\n".join(entry.getMessage() for entry in caplog.records if entry.name == logger)
+    assert "stage=stt result=transcription" in output
+    assert "audio_ms=1000" in output
+    assert private not in caplog.text
+    assert not phone["runtime"].frames.pending
     assert not phone["backend"].active

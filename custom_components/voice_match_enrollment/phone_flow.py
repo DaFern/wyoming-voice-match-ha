@@ -2,11 +2,13 @@
 
 import asyncio
 import base64
+import re
 import secrets
 import time
 from dataclasses import dataclass, field
 
 from .learning_bridge_protocol import BridgeError
+from .phone_diagnostics import record
 
 MARKER = "Voice learning input"
 NOTICE = (
@@ -18,6 +20,26 @@ NOTICE = (
 )
 STOP = {"no", "stop", "pause", "cancel", "stop learning", "pause learning", "cancel learning"}
 STATUS = {"status", "check status", "continue"}
+
+
+def control_category(text):
+    """Describe the existing parser without broadening consent or stop matching."""
+    command = text.casefold().strip(" .!?\r\n\t")
+    if command == "yes":
+        return "yes"
+    if command in STOP:
+        return "stop"
+    if command in STATUS:
+        return "status"
+    # Diagnostic only: these variants are NOT accepted by the current parser.
+    unpunctuated = re.sub(r"^\W+|\W+$", "", command)
+    if unpunctuated in STOP:
+        return "stop_punctuation"
+    if unpunctuated == "yes":
+        return "yes_punctuation"
+    if "biometric voiceprint" in command and "do you consent" in command:
+        return "notice_like"
+    return "other"
 
 
 @dataclass(repr=False)
@@ -105,8 +127,23 @@ class PhoneController:
 
     async def handle(self, frame):
         if self.closing:
+            record("flow", "closing")
             return PhoneReply("Phone voice learning is unavailable.")
         async with asyncio.timeout(60), self.lock:
+            previous = self.flows.get(self.key(frame))
+            if previous is not None:
+                continuity = "expired_scope" if previous.expires <= time.monotonic() else "same_scope"
+            elif any(flow.connection is frame.connection and flow.user_id == frame.user_id
+                     for flow in self.flows.values()):
+                continuity = "chat_changed"
+            elif any(flow.user_id == frame.user_id for flow in self.flows.values()):
+                continuity = "connection_changed"
+            elif any(flow.connection is frame.connection for flow in self.flows.values()):
+                continuity = "account_changed"
+            else:
+                continuity = "new_scope"
+            record("flow", "received", control=control_category(frame.text), continuity=continuity,
+                   phase=previous.phase if previous is not None else "none", audio_bytes=len(frame.audio))
             # No audio/consent may survive into a different chat or connection.
             for key, previous in list(self.flows.items()):
                 if previous.expires <= time.monotonic():
@@ -120,9 +157,12 @@ class PhoneController:
             command = frame.text.casefold().strip(" .!?\r\n\t")
             if command in STOP:
                 if flow is None:
+                    record("flow", "stop_no_session")
                     return PhoneReply("Voice learning has not started.")
                 if await self._pause(key, flow):
+                    record("flow", "stop_paused")
                     return PhoneReply("Voice learning is paused. Partial samples are kept for an explicitly consented resume.")
+                record("flow", "stop_unverified")
                 return PhoneReply("I could not verify the pause. Processing may still be running; check Voice Match management.")
             if flow is None:
                 if len(self.flows) >= 16:
@@ -132,11 +172,14 @@ class PhoneController:
                     return PhoneReply("You need an existing voice profile explicitly assigned to your account. Ask an administrator to check Voice Match management.")
                 flow = PhoneFlow(frame.connection, frame.user_id, frame.conversation_id, own["id"])
                 self.flows[key] = flow
+                record("flow", "notice_new")
                 return PhoneReply(NOTICE, True)  # Even an initial 'yes' is never consent.
             if frame.started_at <= flow.issued:
+                record("flow", "stale_turn")
                 return PhoneReply("That recording began before the current prompt. Please wait for the prompt to finish and record again.")
             if flow.phase == "consent":
                 if command != "yes":
+                    record("flow", "notice_repeat")
                     return PhoneReply(NOTICE, True)
                 flow.phase, flow.expires = "attention", time.monotonic() + 900
                 result = await self.bridge.call("begin", frame.user_id, {

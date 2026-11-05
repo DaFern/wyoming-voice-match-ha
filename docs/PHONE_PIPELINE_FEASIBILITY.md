@@ -108,3 +108,50 @@ References checked: HA 2026.10.1 `stt/models.py`, `assist_pipeline/websocket_api
 [STT](https://developers.home-assistant.io/docs/core/entity/stt/) and
 [conversation](https://developers.home-assistant.io/docs/core/entity/conversation/)
 entity documentation. No Core hooks or registry files were modified.
+
+## Repeated consent notice diagnostics (development, not deployed)
+
+A real phone reported hearing the notice and entering follow-up listening, but
+replying "no" repeated the notice. That verifies part of the phone interaction,
+not consent/cancellation or safe training. Recent Core logs also contained
+non-existing audio-handler errors; neither those errors nor this report establish
+the transcript or the cause. Keep enrolment on hold until cancellation works.
+
+The checkout adds INFO-level diagnostics under
+`custom_components.voice_match_enrollment.phone_diagnostics`. Deployment and
+temporarily enabling that logger require separate approval; neither happened in
+this development step. This is companion code, so activating it needs a Core
+restart, not an add-on update. Existing logger settings are unchanged.
+
+Every diagnostic field is restricted to a fixed vocabulary, plus a bounded
+buffered-audio duration in milliseconds (mono 16 kHz PCM, at most 10,000 ms).
+Failed captures can report an incomplete buffered duration. No account/profile/
+chat/connection/task IDs, source labels, session tokens, permits, keys, transcripts,
+raw audio, peer errors or tracebacks are included. No new diagnostic recording,
+persistent identifier or last-user tracking is introduced. These categories enter
+normal HA logs if INFO is enabled and follow their normal retention policy.
+
+- `stage=stt result=ready control=...`: control transcription completed. Categories
+  are `yes`, `stop`, `status`, `other`, or diagnostic-only `yes_punctuation`,
+  `stop_punctuation` and `notice_like`. Punctuation categories mean outer
+  punctuation prevented the current exact parser from matching; they do **not**
+  broaden accepted consent/cancellation. `notice_like` matches known notice wording,
+  not proof that TTS echo was captured or proof of the biological speaker.
+- `stage=flow result=received`: shows `phase` and scope continuity: `new_scope`,
+  `same_scope`, `expired_scope`, `chat_changed`, `connection_changed` or
+  `account_changed`, compared only against existing bounded flow state. A repeated
+  notice can then be distinguished as `notice_new` versus `notice_repeat`.
+- `stop_no_session`, `stop_paused` and `stop_unverified` distinguish stop outcomes.
+  Exact recognised "no" must not start training, regardless of a changed scope.
+- Handoff `missing`, `binding_mismatch`, `expired`, `discarded` and `consumed`
+  distinguish rejection/cleanup from agent delivery. `consumed` means a handoff
+  was taken, **not** that training occurred. STT failures report only the stage,
+  such as `capture`, `audio_limit` or `transcription`; agent errors are generic.
+- `stage=connection result=disconnect` identifies a native connection close
+  without identifying the connection or adding an administrator fallback.
+
+The diagnostic implementation intentionally leaves consent matching, cancellation,
+audio limits, handoff binding, training authorisation, pipeline behaviour and
+thresholds unchanged. Logs do not reveal arbitrary words behind `other`, and
+concurrent turns have no persistent correlation ID; inconclusive results must not
+be treated as proof of echo, a particular transcript or successful enrolment.

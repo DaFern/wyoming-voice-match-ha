@@ -63,6 +63,22 @@ class PhoneHandoffTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(self.take())
         self.assertEqual(frame.audio, b"")
 
+    async def test_diagnostics_distinguish_mismatch_expiry_and_missing_without_clip_data(self):
+        logger = "custom_components.voice_match_enrollment.phone_diagnostics"
+        with self.assertLogs(logger, level="INFO") as logs:
+            owner = self.reserve()
+            self.assertIsNone(self.take(user_id="PRIVATE-other-account"))
+            self.frames.discard(owner)
+            self.reserve()
+            self.now += 60
+            self.assertIsNone(self.take())
+            self.assertIsNone(self.take())
+        output = "\n".join(logs.output)
+        for result in ("binding_mismatch", "expired", "missing"):
+            self.assertIn(f"result={result}", output)
+        for private in ("PRIVATE", "private-audio", "private-text"):
+            self.assertNotIn(private, repr([entry.__dict__ for entry in logs.records]))
+
     async def test_task_completion_and_disconnect_destroy_pending_audio(self):
         owner = self.reserve()
         frame = self.frames.pending[owner].frame
