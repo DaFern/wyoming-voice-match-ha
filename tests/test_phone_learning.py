@@ -13,10 +13,16 @@ class PhoneLearningTests(unittest.IsolatedAsyncioTestCase):
     asyncSetUp = bridge_fixtures.BridgeTests.asyncSetUp
     asyncTearDown = bridge_fixtures.BridgeTests.asyncTearDown
 
-    async def say(self, text, *, connection=None, user_id="alice", conversation_id="phone-chat", audio=None):
+    async def say(self, text, *, connection=None, user_id="alice", conversation_id="phone-chat", audio=None,
+                  login_id=None):
         from custom_components.voice_match_enrollment.phone_flow import PhoneFrame
-        frame = PhoneFrame(connection or self.connection, user_id, conversation_id,
-                           time.monotonic(), audio if audio is not None else b"\x00" * 32000, text)
+        connection = connection or self.connection
+        login_id = login_id or f"synthetic-login-{id(connection)}"
+        started_at = time.monotonic()
+        permit = await self.phone.prepare(connection, user_id, conversation_id, login_id)
+        frame = PhoneFrame(connection, user_id, conversation_id,
+                           started_at, audio if audio is not None else b"\x00" * 32000, text,
+                           login_id=login_id, permit=permit)
         return await self.phone.handle(frame)
 
     async def make_phone(self):
@@ -132,7 +138,7 @@ class PhoneLearningTests(unittest.IsolatedAsyncioTestCase):
         await self.say("yes")
         flow = next(iter(self.phone.flows.values()))
         reply = await self.phone.handle(PhoneFrame(self.connection, "alice", "phone-chat",
-            flow.issued - 1, b"\x00" * 32000, "phrase"))
+            flow.issued - 1, b"\x00" * 32000, "phrase", login_id=f"synthetic-login-{id(self.connection)}"))
         self.assertIn("before the current prompt", reply.speech)
         self.assertEqual(self.runtime.active.recording.count, 0)
 
@@ -222,3 +228,48 @@ class PhoneLearningTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(await self.phone.shutdown())
         self.assertIsNone(next(iter(self.phone.flows.values())).permit)
         self.assertIn("unavailable", (await self.say("phrase")).speech)
+
+    async def test_completed_reconnect_rotates_permit_against_real_bridge(self):
+        await self.make_phone()
+        login_id = "synthetic-stable-login"
+        await self.say("start", login_id=login_id)
+        await self.say("yes", login_id=login_id)
+        flow = next(iter(self.phone.flows.values()))
+        self.assertIsNone(flow.permit)
+        original = self.runtime.active.learning.permit
+        self.phone.connection_lost(self.connection, completed=True)
+        self.assertTrue(await self.phone.disconnect(self.connection))
+        reply = await self.say("a reading phrase", connection=object(), login_id=login_id)
+        await asyncio.gather(*list(self.runtime.tasks))
+        self.assertEqual(self.runtime.active.recording.count, 1)
+        self.assertIsNone(flow.permit)
+        self.assertTrue(original != self.runtime.active.learning.permit)
+        self.assertIn("Sample", reply.speech)
+
+    async def test_expired_turn_permit_is_not_refreshed_after_recording(self):
+        from custom_components.voice_match_enrollment.learning_bridge_protocol import (
+            BridgeError,
+        )
+        from custom_components.voice_match_enrollment.phone_flow import PhoneFrame
+        await self.make_phone()
+        login_id = "synthetic-stable-login"
+        await self.say("start", login_id=login_id)
+        await self.say("yes", login_id=login_id)
+        started_at = time.monotonic()
+        permit = await self.phone.prepare(self.connection, "alice", "phone-chat", login_id)
+        self.runtime.active.learning.permit_expires = 0
+        frame = PhoneFrame(self.connection, "alice", "phone-chat", started_at,
+                           b"\x00" * 32000, "phrase", login_id=login_id, permit=permit)
+        with self.assertRaises(BridgeError):
+            await self.phone.handle(frame)
+        self.assertIsNone(frame.permit)
+        self.assertEqual(self.runtime.active.recording.count, 0)
+
+    async def test_missing_login_identity_never_creates_a_flow(self):
+        from custom_components.voice_match_enrollment.phone_flow import PhoneFrame
+        await self.make_phone()
+        reply = await self.phone.handle(PhoneFrame(self.connection, "alice", "phone-chat",
+            time.monotonic(), b"\x00" * 32000, "yes"))
+        self.assertIn("unavailable", reply.speech)
+        self.assertFalse(self.phone.flows)
+        self.assertIsNone(self.runtime.active)

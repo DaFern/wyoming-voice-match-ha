@@ -80,8 +80,12 @@ class PhoneLearningStt(stt.SpeechToTextEntity):
             if user is None or not user.is_active or user.system_generated or not self.check_metadata(metadata):
                 raise ValueError("Phone caller unavailable")
             stage = "reserve"
+            login_id = self.runtime.authorize(connection, user.id)
             self.runtime.watch(connection)
-            owner = self.runtime.frames.reserve(connection, user.id, session)
+            owner = self.runtime.frames.reserve(connection, user.id, session, login_id=login_id)
+            stage = "prepare"
+            permit = await self.runtime.controller.prepare(connection, user.id, session.conversation_id, login_id)
+            self.runtime.frames.set_permit(owner, permit)
             stage = "source"
             source = control_source(self.hass, self.runtime.source_id)
             language = next(language for language in ("en", "en-GB", "en-US") if language in source.supported_languages)
@@ -90,24 +94,48 @@ class PhoneLearningStt(stt.SpeechToTextEntity):
             if not source.check_metadata(source_metadata):
                 raise ValueError("Whisper does not support the recording format")
             async with asyncio.timeout(45):
-                stage = "capture"
-                async for chunk in stream:
-                    if not isinstance(chunk, bytes) or len(audio) + len(chunk) > 320000:
-                        stage = "audio_limit"
-                        raise ValueError("Recording exceeds ten seconds")
-                    audio.extend(chunk)
+                iterator = aiter(stream)
+                capture_failed = False
+                async def capture():
+                    nonlocal stage, capture_failed
+                    try:
+                        async for chunk in iterator:
+                            if not isinstance(chunk, bytes) or len(audio) + len(chunk) > 320000:
+                                stage, capture_failed = "audio_limit", True
+                                raise ValueError("Recording exceeds ten seconds")
+                            audio.extend(chunk)
+                            # Preserve source streaming/endpointer behaviour. Waiting
+                            # for client EOF before invoking STT can deadlock a client
+                            # that waits for STT_END before it stops sending audio.
+                            yield chunk
+                    except Exception:
+                        # Providers must not accept an interrupted clip.
+                        if not capture_failed:
+                            stage = "capture"
+                        capture_failed = True
+                        raise
+                captured = capture()
+                stage = "transcription"
+                try:
+                    result = await source.async_process_audio_stream(source_metadata, captured)
+                finally:
+                    await captured.aclose()
+                    if close := getattr(iterator, "aclose", None):
+                        await close()
+                if capture_failed:
+                    # A provider must not turn a rejected/oversized stream into
+                    # an accepted partial recording by swallowing its exception.
+                    raise ValueError("Recording was rejected")
                 if not audio or len(audio) % 2:
                     stage = "audio_format"
                     raise ValueError("Unsupported PCM recording")
                 clip = bytes(audio)
-                async def replay():
-                    yield clip
-                stage = "transcription"
-                result = await source.async_process_audio_stream(source_metadata, replay())
             if (result.result != stt.SpeechResultState.SUCCESS or not isinstance(result.text, str)
                     or not result.text.strip() or len(result.text) > 5000):
                 raise ValueError("Control transcription unavailable")
             stage = "handoff"
+            if self.runtime.authorize(connection, user.id) != login_id:
+                raise ValueError("Phone login changed")
             self.runtime.frames.put(owner, clip, result.text)
             record("stt", "ready", control=control_category(result.text), audio_bytes=len(audio))
             return stt.SpeechResult(MARKER, stt.SpeechResultState.SUCCESS)

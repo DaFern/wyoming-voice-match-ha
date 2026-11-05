@@ -50,7 +50,8 @@ Ordinary pipelines must not select these learning entities.
 - The implementation now caps pending clips at eight, PCM at ten seconds /
   320,000 bytes and handoffs at 60 seconds. It consumes each clip once, clears
   unclaimed audio at task completion/disconnect and refuses overlapping turns on
-  one connection. These are tested safeguards, not physical microphone evidence.
+  one connection or one authenticated-login/account/chat recording scope. These
+  are tested safeguards, not physical microphone evidence.
 - Sentence triggers remain global. A matching/catch-all automation may handle
   the neutral marker rather than the learning agent. No training is permitted
   in that case; the prototype cannot promise an unconditional bypass of all
@@ -155,3 +156,104 @@ audio limits, handoff binding, training authorisation, pipeline behaviour and
 thresholds unchanged. Logs do not reveal arbitrary words behind `other`, and
 concurrent turns have no persistent correlation ID; inconclusive results must not
 be treated as proof of echo, a particular transcript or successful enrolment.
+
+## Streaming fix and reconnect blocker (development, not deployed)
+
+The no-only phone reproduction logged successful STT turns classified as `other`,
+each followed by `notice_new` and a connection disconnect. Another turn failed
+transcription; the final capture hit the ten-second limit. No logged turn reached
+training. This does not reveal what Whisper transcribed or prove playback echo.
+
+A native regression reproduced a separate stream-handling defect: the wrapper
+buffered until client EOF before invoking the selected source. A provider that
+endpoints while the client is still sending therefore never got a chance to run.
+That test timed out before the fix. The development STT wrapper now tees incoming
+chunks directly to the selected ordinary source, simultaneously buffering only
+the bounded audio it consumes. Early source completion closes the input iterator;
+queued/unconsumed tail audio is not added to a training clip. The ten-second /
+320,000-byte cap, 45-second deadline, format checks, one-use exact native-task
+handoff and authorisation-before-training are unchanged. A provider cannot turn
+an overlong/interrupted stream into an accepted partial clip by swallowing its
+exception. A source that consumes no audio cannot supply a successful handoff.
+
+The initial tests reproduced the reconnect blocker: after closing the socket
+between notice and reply, even "yes" on the same account/chat gets a fresh notice.
+That was the initial intentional fail-closed behaviour. The revised development
+binding below supersedes it for completed turns, not for interrupted captures.
+Current upstream Android `WebSocketCoreImpl` closes its connection when the last
+subscription ends; `AssistViewModelBase` stops its pipeline collection at run-end
+and waits for TTS playback before requesting follow-up. This is consistent with
+the observed disconnects, but the installed Android build was not independently
+inspected. A server-side subscription invisible to the client's own subscription
+count cannot promise to keep that socket open.
+
+A native feasibility probe confirmed that HA's authenticated
+`ActiveConnection.refresh_token_id` can identify the same login credential family
+across reconnects while distinguishing another login for the same user. The probe
+uses HA's public auth lookup to verify ownership; no token value is retrieved or
+logged. This is not physical-device authentication and is not yet a production
+flow key in that initial probe. The user subsequently approved the development
+prototype described below. Each individual recording must
+still satisfy its exact task/connection/account/chat handoff, token revocation
+and account checks; reconnects must not reuse old audio or an unused permit, and
+neither account/chat alone nor a supplied device label can resume consent.
+
+References checked: HA 2026.10.1
+[Wyoming STT](https://github.com/home-assistant/core/blob/2026.10.1/homeassistant/components/wyoming/stt.py),
+[pipeline WebSocket protocol](https://github.com/home-assistant/core/blob/2026.10.1/homeassistant/components/assist_pipeline/websocket_api.py),
+and current upstream Android
+[AssistViewModelBase](https://github.com/home-assistant/android/blob/master/common/src/main/kotlin/io/homeassistant/companion/android/common/assist/AssistViewModelBase.kt)
+and [WebSocketCoreImpl](https://github.com/home-assistant/android/blob/master/common/src/main/kotlin/io/homeassistant/companion/android/common/data/websocket/impl/WebSocketCoreImpl.kt).
+No Android code, HA internals, live files, pipeline or logger setting changed in
+this development step. The previously enabled live diagnostic logger remains on;
+the streaming/reconnect changes are uncommitted and undeployed. No real-device
+acceptance or transcript-matching fix is claimed.
+
+## Authenticated-login reconnect prototype (development, not deployed)
+
+Guided state is now keyed by HA's server-authenticated normal login identity,
+account and chat. The identity is the refresh-token **ID**, not its bearer value;
+the token secret is never read or sent to the backend. Public auth lookup checks
+that the login still exists, belongs to the current active non-system user and
+has not expired. Missing, revoked, system and long-lived service credentials are
+denied; there is no account-only, chat-only or supplied-device-label fallback.
+Credentials representing one login are not proof of physical-device identity.
+Another client holding those same credentials is inside that same trust boundary.
+
+STT admission, post-transcription handoff and the agent recheck the login. The
+controller also rechecks after acquiring its lock and immediately before begin
+and sample submission. Each individual clip is still RAM-only and tied to its
+exact native task, socket, account and chat; only guided state can span sockets.
+Overlapping captures in the same scope are refused even on separate sockets.
+The flow cap, 120-second consent window and 900-second learning lifetime remain.
+An account's other logins, a changed chat or expired scope need a fresh notice
+and separate yes. Ownership is still checked independently by the paired backend.
+
+Only a successfully handled, still-authenticated agent turn marks the connection
+as ready for follow-up. Its subsequent disconnect detaches the old socket but
+retains bounded guided state. A disconnect during capture/handling instead
+invalidates the pending or already-taken frame synchronously, drops raw audio and
+turn permits, and attempts an account-bound pause with no administrator fallback.
+The old recording scope stays busy until its cancelled native task finishes.
+Interrupted sessions require fresh consent; uncertain cancellation or begin
+outcomes block rather than blindly starting a replacement. An explicit pause/no
+still ends the flow. Unload/restart does not restore consent or recording state.
+
+Prompt-generation permits are used only to obtain the saved-count phrase, then
+discarded locally. Before capturing each authenticated sample turn, the controller
+checks current backend state/count and requests a new one-use permit for that
+exact native handoff. No permit is held in guided state across sockets. A changed
+count/processing state becomes recovery, not an upload of the just-recorded clip;
+expired permits are never refreshed after recording and resubmitted with old PCM.
+Recognised no/pause/status turns are still excluded from training. Unknown sample
+wording and the existing exact yes/no parser have not been broadened by this fix.
+
+Tests use actual HA-authenticated native connections with synthetic STT/audio and
+backend boundaries, plus the real encrypted loopback bridge in unit tests. They
+exercise a reconnect after every turn through notice/yes/sample/pause, different
+logins on one account, real login revocation, missing/expired/service credentials,
+overlapping sockets, interrupted capture, fresh permits and unchanged redaction.
+Actual Android, real Whisper endpointer behaviour, playback echo exclusion and
+recognition of the user's spoken no remain pending a separately approved deploy
+and no-only test. No add-on, pairing, pipeline, live logger or Core change was made
+while developing this prototype.

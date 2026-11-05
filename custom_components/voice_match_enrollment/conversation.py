@@ -39,20 +39,24 @@ class PhoneLearningAgent(conversation.ConversationEntity):
                 chat_session.current_session.get(), user_input.conversation_id)
             user = await self.hass.auth.async_get_user(user_input.context.user_id)
             if (frame is None or user is None or not user.is_active or user.system_generated
-                    or connection.user.id != user.id):
+                    or connection.user.id != user.id
+                    or self.runtime.authorize(connection, user.id) != frame.login_id):
                 record("agent", "account_or_metadata" if frame is not None else "missing")
                 return self._reply(user_input, reply)
             reply = await self.runtime.controller.handle(frame)
+            self.runtime.complete(frame)
         except Exception:  # noqa: BLE001 - Keep peer/account/biometric details out of native error traces.
             record("agent", "failed")
             if frame is not None:
                 flow = self.runtime.controller.flows.get(self.runtime.controller.key(frame))
                 if flow is not None:
                     flow.phase, flow.permit = "attention", None
+                    flow.must_reconsent = True
             reply = PhoneReply("Learning could not be verified. Say pause or status, or check Voice Match management. Do not repeat setup blindly.")
         finally:
             if frame is not None:
                 frame.audio, frame.text = b"", ""
+                frame.permit, frame.valid = None, False
         return self._reply(user_input, reply)
 
     def _reply(self, user_input, reply):

@@ -1,5 +1,54 @@
 # Validation and acceptance checklist
 
+## Authenticated-login reconnect prototype (development only)
+
+Local full-suite validation: **144 unit tests passed, 4 upstream-engine tests
+skipped** (148 discovered); **49 native HA 2026.10.0 tests passed**. Targeted
+Ruff, Python AST parsing and diff checks passed.
+
+The development companion scopes guided state to the same HA-authenticated normal
+login, account and chat, while retaining exact task/socket checks for each clip.
+Login ID lookup never reads or logs its bearer value. Captures in one scope cannot
+overlap across sockets; completed turns may reconnect, but interrupted captures
+invalidate audio/permits and require fresh consent. Fresh upload permits are
+issued before each recording and cannot be renewed after an expired recording.
+
+Native tests exercise a new socket on each notice/yes/sample/pause turn, no after
+notice reconnect, other logins on the same account, changed chats, expired consent,
+missing/revoked/expired/system/long-lived credentials, actual auth-session removal,
+revocation during STT and before agent/mutating operations, concurrent sockets,
+and aborted capture. Unit tests also exercise fresh/expired permits over the real
+encrypted loopback bridge and unchanged diagnostic redaction. No real Android,
+Whisper RPC, DSP/TTS echo behaviour or spoken-no acceptance is established.
+
+No commit/push, live deployment, restart or logger/pairing/pipeline change occurred.
+The earlier approved diagnostic logger remains enabled on the live installation.
+See [the revised trust boundary](PHONE_PIPELINE_FEASIBILITY.md#authenticated-login-reconnect-prototype-development-not-deployed).
+
+## Streaming input fix and reconnect reproduction (earlier development stage)
+
+Local full-suite validation: **141 unit tests passed, 4 upstream-engine tests
+skipped** (145 discovered); **33 native HA 2026.10.0 tests passed**. Targeted
+Ruff, Python AST parsing and diff checks passed.
+
+The early-endpoint test first timed out against the buffer-before-source
+implementation. It now passes without sending client EOF. Native tests check
+that only source-consumed audio reaches a permitted synthetic sample, overlong
+streams are rejected even if a provider swallows the error, disconnect cancels
+the source and drops its clip, a source upload child task cannot steal the native
+handoff owner, and a provider that reads no audio cannot succeed.
+
+At that stage a reconnect test retained fresh-consent-on-new-socket behaviour and
+reproduced why per-socket flows could not progress on a client that closes after
+each pipeline. The auth-session feasibility test distinguished a reconnected login
+from another login belonging to the same account. The subsequently approved
+development design above replaces that across-turn scope, not per-clip checks.
+
+All audio/provider boundaries are synthetic; real Whisper RPC, endpointer/VAD,
+TTS echo exclusion, installed Android behaviour and restored phone enrolment
+remain unverified. No commit/push, deployment, restart or additional live logger
+change occurred. See [streaming and reconnect limits](PHONE_PIPELINE_FEASIBILITY.md#streaming-fix-and-reconnect-blocker-development-not-deployed).
+
 ## Repeated consent notice diagnostics (development only)
 
 Local full-suite validation: **141 unit tests passed, 4 upstream-engine tests

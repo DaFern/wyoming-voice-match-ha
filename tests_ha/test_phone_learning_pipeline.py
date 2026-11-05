@@ -1,7 +1,9 @@
 """Actual phone WebSocket pipeline with synthetic Whisper/backend boundaries."""
 
+import asyncio
 import base64
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from typing import ClassVar
 from unittest.mock import patch
 
@@ -26,6 +28,9 @@ class Backend:
     active: bool = False
     calls: list = field(default_factory=list)
     notice: bool = False
+    permit_serial: int = 0
+    current_permit: str | None = None
+    permit_count: int | None = None
 
     async def call(self, operation, user_id, data):
         self.calls.append((operation, user_id, data))
@@ -43,9 +48,14 @@ class Backend:
             return {"outcome": "paused"}
         assert data["session_token"] == "synthetic-session"
         if operation == "permit":
-            return {"permit": f"synthetic-{self.count}", "count": self.count,
+            self.permit_serial += 1
+            self.current_permit = f"synthetic-permit-{self.permit_serial}"
+            self.permit_count = self.count
+            return {"permit": self.current_permit, "count": self.count,
                     "prompt": "The bright morning sun is shining through the kitchen window while I make breakfast."}
         if operation == "sample":
+            assert data["permit"] == self.current_permit and self.permit_count == self.count
+            self.current_permit = None
             audio = base64.b64decode(data["audio"])
             self.notice = len(audio) < 32000
             if not self.notice:
@@ -114,7 +124,8 @@ async def phone(hass, hass_ws_client, hass_admin_user, phone_probe):  # noqa: F8
         assert created["success"], created
         pipeline_id = created["result"]["id"]
         sequence = 10
-        async def run(marker, *, selected_client=None, end_stage="intent", chat="phone-chat", expect_error=False):
+        async def run(marker, *, selected_client=None, end_stage="intent", chat="phone-chat", expect_error=False,
+                      send_eof=True, sample_count=16000):
             nonlocal sequence
             current = selected_client or client
             sequence += 1
@@ -122,7 +133,7 @@ async def phone(hass, hass_ws_client, hass_admin_user, phone_probe):  # noqa: F8
                 "start_stage": "stt", "end_stage": end_stage, "conversation_id": chat, "input": {"sample_rate": 16000}})
             events = []
             while True:
-                result = await current.receive_json()
+                result = await asyncio.wait_for(current.receive_json(), 5)
                 assert result.get("success", True), result
                 if "event" not in result:
                     continue
@@ -130,8 +141,9 @@ async def phone(hass, hass_ws_client, hass_admin_user, phone_probe):  # noqa: F8
                 events.append(event)
                 if event["type"] == "run-start":
                     handler = event["data"]["runner_data"]["stt_binary_handler_id"]
-                    await current.send_bytes(bytes([handler]) + bytes([marker, 0]) * 16000)
-                    await current.send_bytes(bytes([handler]))
+                    await current.send_bytes(bytes([handler]) + bytes([marker, 0]) * sample_count)
+                    if send_eof:
+                        await current.send_bytes(bytes([handler]))
                 if event["type"] == "run-end":
                     errors = [item for item in events if item["type"] == "error"]
                     assert bool(errors) == expect_error, events
@@ -167,10 +179,11 @@ async def test_native_pause_is_not_submitted_as_a_sample(phone):
     assert not phone["backend"].active
 
 
-async def test_other_connection_cannot_train_even_with_the_same_user_and_chat(hass, hass_ws_client, phone):
+async def test_other_login_cannot_train_even_with_the_same_user_and_chat(hass, hass_ws_client, hass_admin_user, phone):
     await phone["run"](1)
     await phone["run"](2)
-    second = await hass_ws_client(hass)
+    login = await hass.auth.async_create_refresh_token(hass_admin_user, client_id="http://other-phone-login")
+    second = await hass_ws_client(hass, hass.auth.async_create_access_token(login))
     assert "biometric voiceprint" in speech(await phone["run"](3, selected_client=second))
     assert phone["backend"].count == 0
 
@@ -222,7 +235,7 @@ async def test_phone_options_retain_existing_source_when_omitted(hass, phone):
     await hass.async_block_till_done()
 
 
-async def test_native_connection_close_pauses_its_learning_session(hass, phone):
+async def test_completed_turn_disconnect_retains_only_bounded_guided_state(hass, phone):
     await phone["run"](1)
     await phone["run"](2)
     assert phone["backend"].active
@@ -234,8 +247,11 @@ async def test_native_connection_close_pauses_its_learning_session(hass, phone):
         await asyncio.gather(*tasks)
     assert not phone["runtime"].connections
     assert not phone["runtime"].frames.pending
-    assert not phone["runtime"].controller.flows
-    assert not phone["backend"].active
+    flow = next(iter(phone["runtime"].controller.flows.values()))
+    assert flow.connection is None
+    assert flow.permit is None
+    assert not flow.must_reconsent
+    assert phone["backend"].active
 
 
 async def test_native_diagnostics_distinguish_repeated_notice_from_recognised_no(phone, caplog):
@@ -255,7 +271,8 @@ async def test_native_diagnostics_distinguish_repeated_notice_from_recognised_no
     assert "result=stop_paused" in output
     assert "stage=stt result=ready" in output
     assert "audio_ms=1000" in output
-    for private in (phone["entry"].data["key"], phone["backend"].user_id, "phone-chat", NOTICE, "No,"):
+    login_id = next(iter(phone["runtime"].connections.values()))[0].refresh_token_id
+    for private in (phone["entry"].data["key"], phone["backend"].user_id, login_id, "phone-chat", NOTICE, "No,"):
         assert private not in repr([entry.__dict__ for entry in records])
     assert not [call for call in phone["backend"].calls if call[0] in {"begin", "sample"}]
 
@@ -280,12 +297,364 @@ async def test_native_diagnostics_report_transcription_failure_without_peer_erro
     import logging
     logger = "custom_components.voice_match_enrollment.phone_diagnostics"
     private = "PRIVATE-peer-transcript-and-credentials"
+    async def fail_after_capture(metadata, stream):
+        async for _ in stream:
+            pass
+        raise RuntimeError(private)
     with (caplog.at_level(logging.INFO, logger=logger),
-          patch.object(phone["source"], "async_process_audio_stream", side_effect=RuntimeError(private))):
+          patch.object(phone["source"], "async_process_audio_stream", side_effect=fail_after_capture)):
         await phone["run"](1, expect_error=True)
     output = "\n".join(entry.getMessage() for entry in caplog.records if entry.name == logger)
     assert "stage=stt result=transcription" in output
     assert "audio_ms=1000" in output
     assert private not in caplog.text
     assert not phone["runtime"].frames.pending
+    assert not phone["backend"].active
+
+
+async def test_source_can_endpoint_without_waiting_for_client_eof(phone):
+    consumed = []
+    async def endpoint(metadata, stream):
+        # A streaming provider may finish on its own VAD. Companion stops sending
+        # only after STT_END, so waiting for client EOF first would deadlock.
+        async for chunk in stream:
+            consumed.append(chunk)
+            if sum(map(len, consumed)) >= 32000:
+                break
+        return stt.SpeechResult("No", stt.SpeechResultState.SUCCESS)
+    with patch.object(phone["source"], "async_process_audio_stream", side_effect=endpoint):
+        events = await asyncio.wait_for(phone["run"](5, send_eof=False), 1)
+    assert "has not started" in speech(events)
+    assert b"".join(consumed) == bytes([5, 0]) * 16000
+    assert not phone["runtime"].frames.pending
+    assert not phone["backend"].active
+
+
+async def test_companion_style_reconnect_retains_notice_for_same_authenticated_login(hass, hass_ws_client, phone):
+    await phone["run"](1)
+    await phone["client"].close()
+    await hass.async_block_till_done()
+    tasks = list(phone["runtime"].cleanup_tasks)
+    if tasks:
+        await asyncio.gather(*tasks)
+    second = await hass_ws_client(hass)
+    assert "Sample 1 of 2" in speech(await phone["run"](2, selected_client=second))
+    assert phone["backend"].active
+    assert not [call for call in phone["backend"].calls if call[0] == "sample"]
+
+
+async def test_early_endpoint_hands_off_only_audio_consumed_by_source(phone):
+    await phone["run"](1)
+    await phone["run"](2)
+    async def endpoint(metadata, stream):
+        size = 0
+        async for chunk in stream:
+            size += len(chunk)
+            if size >= 32000:
+                break
+        return stt.SpeechResult("A synthetic reading phrase", stt.SpeechResultState.SUCCESS)
+    with patch.object(phone["source"], "async_process_audio_stream", side_effect=endpoint):
+        events = await asyncio.wait_for(phone["run"](3, send_eof=False, sample_count=32000), 1)
+    assert "Sample 2 of 2" in speech(events)
+    samples = [call for call in phone["backend"].calls if call[0] == "sample"]
+    assert len(samples) == 1
+    assert base64.b64decode(samples[0][2]["audio"]) == bytes([3, 0]) * 16000
+    assert not phone["runtime"].frames.pending
+
+
+@pytest.mark.parametrize("swallow_limit", [False, True])
+async def test_streaming_still_rejects_overlong_audio_even_if_source_swallows_error(phone, swallow_limit):
+    async def source(metadata, stream):
+        try:
+            async for _ in stream:
+                pass
+        except ValueError:
+            if not swallow_limit:
+                raise
+        return stt.SpeechResult("Yes", stt.SpeechResultState.SUCCESS)
+    with patch.object(phone["source"], "async_process_audio_stream", side_effect=source):
+        await phone["run"](2, sample_count=176000, expect_error=True)
+    assert not phone["runtime"].frames.pending
+    assert not phone["backend"].active
+    assert not [call for call in phone["backend"].calls if call[0] in {"begin", "sample"}]
+
+
+async def test_disconnect_cancels_streaming_source_and_drops_audio(hass, phone):
+    entered, cancelled = asyncio.Event(), asyncio.Event()
+    async def source(metadata, stream):
+        await anext(aiter(stream))
+        entered.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cancelled.set()
+    with patch.object(phone["source"], "async_process_audio_stream", side_effect=source):
+        task = asyncio.create_task(phone["run"](1, send_eof=False))
+        try:
+            await asyncio.wait_for(entered.wait(), 1)
+            await phone["client"].close()
+            await asyncio.wait_for(cancelled.wait(), 1)
+            await hass.async_block_till_done()
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+    assert not phone["runtime"].frames.pending
+    assert not phone["runtime"].frames.busy
+    assert not phone["backend"].active
+
+
+async def test_source_upload_child_task_does_not_change_native_handoff_owner(phone):
+    async def source(metadata, stream):
+        async def upload():
+            return b"".join([chunk async for chunk in stream])
+        audio = await asyncio.create_task(upload())
+        assert audio == bytes([5, 0]) * 16000
+        return stt.SpeechResult("No", stt.SpeechResultState.SUCCESS)
+    with patch.object(phone["source"], "async_process_audio_stream", side_effect=source):
+        assert "has not started" in speech(await phone["run"](5))
+    assert not phone["runtime"].frames.pending
+    assert not phone["backend"].active
+
+
+async def test_source_cannot_accept_audio_it_never_consumed(phone):
+    async def source(metadata, stream):
+        return stt.SpeechResult("Yes", stt.SpeechResultState.SUCCESS)
+    with patch.object(phone["source"], "async_process_audio_stream", side_effect=source):
+        await phone["run"](2, expect_error=True)
+    assert not phone["runtime"].frames.pending
+    assert not phone["backend"].active
+
+
+async def test_authenticated_login_session_can_be_distinguished_from_socket_and_account(
+    hass, hass_ws_client, hass_admin_user, phone,
+):
+    # Feasibility only: production flow binding is deliberately unchanged.
+    from homeassistant.components.websocket_api.connection import current_connection
+    bindings = []
+    async def source(metadata, stream):
+        async for _ in stream:
+            pass
+        connection = current_connection.get()
+        token_id = connection.refresh_token_id
+        token = hass.auth.async_get_refresh_token(token_id)
+        assert token is not None and token.user.id == hass_admin_user.id
+        bindings.append(token_id)
+        return stt.SpeechResult("No", stt.SpeechResultState.SUCCESS)
+    with patch.object(phone["source"], "async_process_audio_stream", side_effect=source):
+        await phone["run"](5)
+        await phone["client"].close()
+        await hass.async_block_till_done()
+        second = await hass_ws_client(hass)
+        await phone["run"](5, selected_client=second)
+        different_login = await hass.auth.async_create_refresh_token(hass_admin_user,
+            client_id="http://separate-test-login")
+        third = await hass_ws_client(hass, hass.auth.async_create_access_token(different_login))
+        await phone["run"](5, selected_client=third)
+    assert len(bindings) == 3
+    assert bool(bindings[0] == bindings[1])
+    assert bool(bindings[0] != bindings[2])
+    assert not phone["backend"].active
+
+
+async def close_phone_turn(hass, phone, client):
+    await client.close()
+    await hass.async_block_till_done()
+    tasks = list(phone["runtime"].cleanup_tasks)
+    if tasks:
+        await asyncio.gather(*tasks)
+
+
+async def test_every_turn_can_reconnect_same_login_with_fresh_permits_and_pause(hass, hass_ws_client, phone):
+    assert "biometric voiceprint" in speech(await phone["run"](1))
+    await close_phone_turn(hass, phone, phone["client"])
+    second = await hass_ws_client(hass)
+    assert "Sample 1 of 2" in speech(await phone["run"](2, selected_client=second))
+    prompt_only_permit = phone["backend"].current_permit
+    flow = next(iter(phone["runtime"].controller.flows.values()))
+    assert flow.permit is None
+    await close_phone_turn(hass, phone, second)
+    third = await hass_ws_client(hass)
+    assert "Sample 2 of 2" in speech(await phone["run"](3, selected_client=third))
+    samples = [call for call in phone["backend"].calls if call[0] == "sample"]
+    assert len(samples) == 1
+    assert samples[0][2]["permit"] != prompt_only_permit
+    assert phone["backend"].count == 1
+    await close_phone_turn(hass, phone, third)
+    fourth = await hass_ws_client(hass)
+    assert "paused" in speech(await phone["run"](4, selected_client=fourth))
+    assert phone["backend"].count == 1
+    assert not phone["backend"].active
+    assert not phone["runtime"].controller.flows
+
+
+async def test_no_after_notice_reconnect_cancels_without_training(hass, hass_ws_client, phone):
+    await phone["run"](1)
+    await close_phone_turn(hass, phone, phone["client"])
+    second = await hass_ws_client(hass)
+    assert "paused" in speech(await phone["run"](5, selected_client=second))
+    assert not phone["runtime"].controller.flows
+    assert not [call for call in phone["backend"].calls if call[0] in {"begin", "sample"}]
+
+
+async def test_same_login_new_chat_and_expired_notice_require_fresh_consent(hass, hass_ws_client, phone):
+    await phone["run"](1)
+    await close_phone_turn(hass, phone, phone["client"])
+    second = await hass_ws_client(hass)
+    assert "biometric voiceprint" in speech(await phone["run"](2, selected_client=second, chat="other-chat"))
+    next(iter(phone["runtime"].controller.flows.values())).expires = 0
+    assert "biometric voiceprint" in speech(await phone["run"](2, selected_client=second, chat="other-chat"))
+    assert not phone["backend"].active
+
+
+@pytest.mark.parametrize("invalid", ["missing", "revoked", "expired", "system", "long_lived", "wrong_user"])
+async def test_login_validation_fails_closed(phone, invalid):
+    await phone["run"](1)
+    connection = next(iter(phone["runtime"].connections.values()))[0]
+    runtime = phone["runtime"]
+    user = connection.user
+    valid_id = connection.refresh_token_id
+    if invalid == "missing":
+        connection.refresh_token_id = None
+        try:
+            with pytest.raises(ValueError):
+                runtime.authorize(connection, user.id)
+        finally:
+            connection.refresh_token_id = valid_id
+        return
+    login = None if invalid == "revoked" else SimpleNamespace(
+        user=user if invalid != "wrong_user" else SimpleNamespace(id="different-test-account"),
+        token_type={"system": "system", "long_lived": "long_lived_access_token"}.get(invalid, "normal"),
+        expire_at=0 if invalid == "expired" else None,
+    )
+    with (patch.object(runtime.hass.auth, "async_get_refresh_token", return_value=login),
+          pytest.raises(ValueError)):
+        runtime.authorize(connection, user.id)
+    assert not phone["backend"].active
+
+
+async def test_login_revocation_during_source_processing_discards_recording(phone):
+    runtime = phone["runtime"]
+    original = runtime.hass.auth.async_get_refresh_token
+    revoked = False
+    def lookup(login_id):
+        return None if revoked else original(login_id)
+    async def source(metadata, stream):
+        nonlocal revoked
+        async for _ in stream:
+            pass
+        revoked = True
+        return stt.SpeechResult("Yes", stt.SpeechResultState.SUCCESS)
+    with (patch.object(runtime.hass.auth, "async_get_refresh_token", side_effect=lookup),
+          patch.object(phone["source"], "async_process_audio_stream", side_effect=source)):
+        await phone["run"](2, expect_error=True)
+    assert not runtime.frames.pending
+    assert not [call for call in phone["backend"].calls if call[0] in {"begin", "sample"}]
+
+
+async def test_same_login_overlapping_connections_cannot_share_a_recording_scope(hass, hass_ws_client, phone):
+    entered, release = asyncio.Event(), asyncio.Event()
+    async def source(metadata, stream):
+        async for _ in stream:
+            pass
+        entered.set()
+        await release.wait()
+        return stt.SpeechResult("start", stt.SpeechResultState.SUCCESS)
+    with patch.object(phone["source"], "async_process_audio_stream", side_effect=source):
+        first = asyncio.create_task(phone["run"](1))
+        try:
+            await asyncio.wait_for(entered.wait(), 1)
+            second = await hass_ws_client(hass)
+            await phone["run"](2, selected_client=second, expect_error=True)
+        finally:
+            release.set()
+            await first
+    assert not phone["backend"].active
+    assert len(phone["runtime"].controller.flows) == 1
+
+
+async def test_disconnect_during_a_consented_capture_requires_new_notice(hass, hass_ws_client, phone):
+    await phone["run"](1)
+    await phone["run"](2)
+    entered, cancelled = asyncio.Event(), asyncio.Event()
+    async def source(metadata, stream):
+        await anext(aiter(stream))
+        entered.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cancelled.set()
+    with patch.object(phone["source"], "async_process_audio_stream", side_effect=source):
+        task = asyncio.create_task(phone["run"](3, send_eof=False))
+        try:
+            await asyncio.wait_for(entered.wait(), 1)
+            await close_phone_turn(hass, phone, phone["client"])
+            await asyncio.wait_for(cancelled.wait(), 1)
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+    second = await hass_ws_client(hass)
+    assert "biometric voiceprint" in speech(await phone["run"](2, selected_client=second))
+    assert phone["backend"].count == 0
+    assert not phone["backend"].active
+    assert not [call for call in phone["backend"].calls if call[0] == "sample"]
+
+
+async def test_login_rechecked_at_agent_before_consent_is_applied(phone):
+    await phone["run"](1)
+    authorize = phone["runtime"].authorize
+    calls = 0
+    def revoke_at_agent(connection, user_id):
+        nonlocal calls
+        calls += 1
+        if calls >= 3:  # STT admission and post-STT check succeeded; agent must still recheck.
+            raise ValueError("Synthetic revoked login")
+        return authorize(connection, user_id)
+    with patch.object(phone["runtime"], "authorize", side_effect=revoke_at_agent):
+        assert "could not be verified" in speech(await phone["run"](2))
+    assert not [call for call in phone["backend"].calls if call[0] in {"begin", "sample"}]
+    assert not phone["runtime"].frames.pending
+
+
+async def test_new_login_cannot_inherit_notice_after_old_socket_closes(hass, hass_ws_client, hass_admin_user, phone):
+    await phone["run"](1)
+    await close_phone_turn(hass, phone, phone["client"])
+    login = await hass.auth.async_create_refresh_token(hass_admin_user, client_id="http://different-login")
+    second = await hass_ws_client(hass, hass.auth.async_create_access_token(login))
+    assert "biometric voiceprint" in speech(await phone["run"](2, selected_client=second))
+    assert not phone["backend"].active
+    assert len(phone["runtime"].controller.flows) == 2
+
+
+async def test_login_is_rechecked_immediately_before_sample_submission(phone):
+    await phone["run"](1)
+    await phone["run"](2)
+    controller = phone["runtime"].controller
+    original = controller.check
+    checks = 0
+    def revoke_before_upload(frame):
+        nonlocal checks
+        checks += 1
+        if checks >= 2:
+            raise ValueError("Synthetic login revoked before upload")
+        return original(frame)
+    with patch.object(controller, "check", side_effect=revoke_before_upload):
+        assert "could not be verified" in speech(await phone["run"](3))
+    assert checks == 2
+    assert not [call for call in phone["backend"].calls if call[0] == "sample"]
+    assert phone["backend"].count == 0
+
+
+async def test_actual_login_removal_revokes_scope_without_disabling_account(hass, hass_ws_client, hass_admin_user, phone):
+    login = await hass.auth.async_create_refresh_token(hass_admin_user, client_id="http://revoked-test-login")
+    client = await hass_ws_client(hass, hass.auth.async_create_access_token(login))
+    await phone["run"](1, selected_client=client)
+    connection = next(value[0] for value in phone["runtime"].connections.values()
+                      if value[0].refresh_token_id == login.id)
+    await close_phone_turn(hass, phone, client)
+    hass.auth.async_remove_refresh_token(login)
+    assert hass_admin_user.is_active
+    with pytest.raises(ValueError):
+        phone["runtime"].authorize(connection, hass_admin_user.id)
+    other = await hass_ws_client(hass)
+    assert "biometric voiceprint" in speech(await phone["run"](2, selected_client=other))
     assert not phone["backend"].active

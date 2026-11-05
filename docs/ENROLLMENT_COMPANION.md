@@ -43,7 +43,9 @@ See [phone implementation and native handoff limits](PHONE_PIPELINE_FEASIBILITY.
 After separately approved installation/pairing, the options can enable the phone
 entities with an explicit ordinary Wyoming Whisper STT selection. A separate
 assistant must select **both** learning entities; existing assistants stay as-is.
-No live assistant has been created during development.
+Creating an assistant does not establish real-phone acceptance. The revised
+authenticated-login reconnect implementation below is development-only and is
+not installed by updating the add-on.
 
 The native authenticated connection, account, exact pipeline task and chat bind a
 bounded RAM clip. Only the learning agent can submit it after authorisation and a
@@ -56,8 +58,15 @@ or global-trigger interception cannot supply a training recording.
 Control transcription uses the selected Whisper source before consent; training
 storage starts only after consent. The first turn and consent/control turns are
 discarded, not samples. Pause retains partial samples for a freshly consented
-resume. Disconnect attempts an account-bound pause without admin fallback; an
-unverified cancellation is reported as attention. No raw clip or bearer credential
+resume. In the revised development design, completed turns may retain bounded
+guided state across sockets only for the same HA-authenticated normal login,
+account and chat. Each clip retains its exact native task/socket handoff. The
+login is rechecked for existence, expiry, ownership and active account status;
+other logins, changed chats and missing/revoked credentials cannot borrow consent.
+Unused permits are not retained across sockets: a fresh count-bound permit is
+obtained before each authenticated recording turn. Interrupted captures invalidate
+their frame, attempt an account-bound pause without admin fallback and require
+fresh consent. An unverified cancellation is reported as attention. No raw clip or bearer credential
 is put in transcript text. Task identity remains version-dependent, not a public
 HA metadata guarantee. Actual Android microphone, follow-up listening, TTS echo
 exclusion and installed-patch acceptance remain unverified.

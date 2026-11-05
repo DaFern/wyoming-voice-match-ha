@@ -10,7 +10,7 @@ RESULTS = {
     "ready", "cancelled", "failed", "missing", "binding_mismatch", "expired",
     "consumed", "discarded", "disconnect", "received", "notice_new",
     "notice_repeat", "stop_no_session", "stop_paused", "stop_unverified",
-    "stale_turn", "closing",
+    "stale_turn", "closing", "prepare",
 }
 CONTROLS = {"none", "yes", "stop", "status", "yes_punctuation", "stop_punctuation", "notice_like", "other"}
 CONTINUITY = {"none", "new_scope", "same_scope", "expired_scope", "chat_changed", "connection_changed", "account_changed"}

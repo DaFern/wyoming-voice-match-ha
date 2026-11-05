@@ -56,8 +56,10 @@ class FlowDiagnosticTests(unittest.IsolatedAsyncioTestCase):
         self.connection = object()
 
     def frame(self, text, *, connection=None, chat="PRIVATE-chat", user="PRIVATE-user"):
-        return PhoneFrame(connection or self.connection, user, chat,
-                          time.monotonic(), b"PRIVATE-audio" * 100, text)
+        connection = connection or self.connection
+        return PhoneFrame(connection, user, chat,
+                          time.monotonic(), b"PRIVATE-audio" * 100, text,
+                          login_id=f"PRIVATE-login-{id(connection)}")
 
     async def test_no_still_stops_and_no_private_frame_fields_enter_logs(self):
         frame = self.frame("PRIVATE-transcript")

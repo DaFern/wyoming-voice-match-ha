@@ -84,6 +84,8 @@ class PhoneHandoffTests(unittest.IsolatedAsyncioTestCase):
         frame = self.frames.pending[owner].frame
         self.frames.drop_connection(self.connection)
         self.assertEqual(frame.audio, b"")
+        self.assertTrue(self.frames.busy)  # Scope remains held until native task completion.
+        self.frames.discard(owner)
         self.assertFalse(self.frames.busy)
         async def child():
             task = self.reserve()
