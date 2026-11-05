@@ -32,6 +32,15 @@ class Page(HTMLParser):
 
 
 class FrontendTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("node"), "Node required for native launch boundary execution")
+    def test_native_launcher_scopes_reloads_capability_and_uncertain_dispatch(self):
+        result = subprocess.run(
+            [shutil.which("node"), str(Path(__file__).with_name("frontend_native_launcher.cjs"))],
+            capture_output=True, text=True, timeout=15, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Native learning launcher boundary checks passed", result.stdout)
+
     @unittest.skipUnless(shutil.which("node"), "Node required for management UI execution")
     def test_own_account_management_profile_creation_guidance_and_failures(self):
         result = subprocess.run(

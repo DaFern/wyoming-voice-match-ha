@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const { webcrypto } = require("node:crypto");
 const root = path.join(__dirname, "../voice_match/rootfs/opt/voice_match/static");
 const source = fs.readFileSync(path.join(root, "app.js"), "utf8");
 const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
@@ -34,7 +35,7 @@ function harness() {
       createElement: element, addEventListener() {},
       querySelectorAll: () => [...elements.values()].flatMap(all),
     },
-    window: { addEventListener() {} }, navigator: {}, AbortController,
+    window: { addEventListener() {} }, navigator: {}, AbortController, crypto: webcrypto, URLSearchParams,
     confirm: () => confirmResult,
     setTimeout: (callback, delay) => { timers.set(++serial, { callback, delay }); return serial; },
     clearTimeout: id => timers.delete(id),
@@ -54,7 +55,7 @@ function harness() {
     get: id => elements.get(id),
     all: id => all(elements.get(id)),
     button(id, text) { const found = all(elements.get(id)).find(node => node.textContent === text && node.events.click); assert(found, text); return found; },
-    async click(id, text) { return this.button(id, text).events.click(); },
+    async click(id, text) { return this.button(id, text).events.click({ preventDefault() {} }); },
     setCurrent(value) { current = value; },
     setFetch(value) { fetchHandler = value; },
     setConfirm(value) { confirmResult = value; },
@@ -90,7 +91,7 @@ async function checks() {
   assert.match(h.get("message").textContent, /No recording has started/);
   assert(h.all("own-profile").some(node => node.textContent === "Voice ready"));
   assert(h.all("own-profile").some(node => node.textContent === "Saved recordings: none"));
-  assert.match(h.get("learning-help-status").textContent, /doesn't open Assist or start recording/);
+  assert.match(h.get("learning-help-status").textContent, /Opening Assist is not recording consent/);
   assert.equal(h.get("wizard").hidden, true);
 
   for (const pending of [undefined, "synthetic-pending"]) {
@@ -99,7 +100,18 @@ async function checks() {
     await own.refresh();
     const count = own.calls.length;
     await own.click("own-profile", pending ? "Resume learning" : "Learn my voice again");
-    assert.equal(own.calls.length, count, "Guide is not a launch, begin or consent request");
+    const link = own.button("own-profile", pending ? "Resume learning" : "Learn my voice again");
+    assert.equal(link.target, "_top");
+    const target = new URL(link.href, "https://home.example");
+    assert.equal(target.pathname, "/voice-match-learning");
+    const context = new URLSearchParams(target.hash.slice(1));
+    assert.equal(context.get("user"), "alice");
+    assert.equal(context.get("profile"), "alice-profile");
+    assert.match(context.get("request"), /^[a-f0-9]{32}$/);
+    assert.deepEqual([...context.keys()].sort(), ["profile", "request", "user"]);
+    assert.equal(own.get("learning-help").hidden, true, "Primary action is the top-level launcher link, not the old manual-only guide");
+    await own.click("own-profile", "Show learning steps");
+    assert.equal(own.calls.length, count, "Neither navigation nor guidance begins training");
     assert.equal(own.get("learning-help").hidden, false);
     if (pending) assert.match(own.get("learning-entry-step").textContent, /separate.*Continue learning/);
     assert.match(own.get("learning-entry-step").textContent, /Start learning/);
@@ -128,14 +140,14 @@ async function checks() {
   const setup = harness();
   setup.setCurrent(setup.snapshot({ profiles: [profile], learning_setup: { paired: false } }));
   await setup.refresh();
-  await setup.click("own-profile", "Learn my voice again");
+  await setup.click("own-profile", "Show learning steps");
   assert.match(setup.get("learning-help-status").textContent, /isn't set up yet/);
 
   const reassigned = harness();
   reassigned.setCurrent(reassigned.snapshot({ profiles: [profile] }));
   await reassigned.refresh();
   await reassigned.click("own-profile", "Personal instructions");
-  await reassigned.click("own-profile", "Learn my voice again");
+  await reassigned.click("own-profile", "Show learning steps");
   reassigned.setCurrent(reassigned.snapshot());
   await reassigned.refresh();
   assert.equal(reassigned.get("learning-help").hidden, true);

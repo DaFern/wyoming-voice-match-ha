@@ -8,7 +8,9 @@ from . import DOMAIN
 
 
 def register(hass):
+    from .launcher import launch_info
     websocket_api.async_register_command(hass, manage)
+    websocket_api.async_register_command(hass, launch_info)
 
 
 @websocket_api.websocket_command({

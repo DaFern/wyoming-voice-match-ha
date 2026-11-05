@@ -154,6 +154,41 @@ function restoreControls() {
   renderLearningPairing();
 }
 
+function setLaunchTarget(event, link, profile) {
+  if (busy || !state || state.learning || !profile || ownProfile()?.id !== profile.id
+      || profile.owner !== state.user.id) {
+    event.preventDefault();
+    message("Check your own voice profile before opening learning.");
+    return;
+  }
+  if (!globalThis.crypto?.getRandomValues) {
+    event.preventDefault();
+    edit(profile);
+    message("The app launcher is unavailable here. Use the learning steps instead.");
+    return;
+  }
+  // Navigation context is comparison-only: no auth/session key, consent, audio,
+  // assistant override or recording permit is sent. HA rechecks the actual user.
+  const request = [...crypto.getRandomValues(new Uint8Array(16))].map(value => value.toString(16).padStart(2, "0")).join("");
+  const context = new URLSearchParams({ request, user: state.user.id, profile: profile.id });
+  link.href = "/voice-match-learning#" + context.toString();
+}
+
+function learningLink(parent, text, profile) {
+  const link = node("a", text);
+  link.href = "/voice-match-learning";
+  link.target = "_top";
+  link.rel = "noreferrer";
+  link.referrerPolicy = "no-referrer";
+  link.className = "primary app-launch";
+  link.disabled = busy || state.learning;
+  link.setAttribute("aria-disabled", String(link.disabled));
+  link.tabIndex = link.disabled ? -1 : 0;
+  link.addEventListener("click", (event) => setLaunchTarget(event, link, profile));
+  parent.append(link);
+  return link;
+}
+
 function renderOwnProfile() {
   const container = $("own-profile");
   container.replaceChildren();
@@ -189,9 +224,8 @@ function renderOwnProfile() {
     : "Saved recordings: none"));
   const actions = node("div");
   actions.className = "actions";
-  const learn = button(actions, profile.pending ? "Resume learning" : profile.enrolled ? "Learn my voice again" : "Learn my voice", () => edit(profile));
-  learn.className = "primary";
-  learn.disabled = busy || state.learning;
+  learningLink(actions, profile.pending ? "Resume learning" : profile.enrolled ? "Learn my voice again" : "Learn my voice", profile);
+  button(actions, "Show learning steps", () => edit(profile));
   button(actions, "Personal instructions", () => showPreferences(profile));
   container.append(actions);
   renderRemoval(container, profile);
@@ -297,7 +331,7 @@ function renderWizard() {
   $("show-admin-setup").hidden = !state.user.admin;
   $("learning-help-status").textContent = !state.learning_setup?.paired
     ? "Voice learning isn't set up yet. Ask a Home Assistant administrator to finish setup before recording."
-    : "This page doesn't open Assist or start recording. Check that your learning assistant is available, then follow these steps.";
+    : "Use the app button to request Voice Learning in Android Companion, or follow the manual steps below. Opening Assist is not recording consent.";
   $("learning-entry-step").textContent = own?.pending
     ? 'If your paused Assist conversation is still available, ask to continue and follow its separate “Continue learning” confirmation. In a new or expired conversation, say “Learn my voice” and follow the fresh “Start learning” notice.'
     : 'Say “Learn my voice”. Listen to the recording notice, then say “Start learning” if you agree.';
@@ -443,6 +477,14 @@ $("cancel").addEventListener("click", () => send({ action: "cancel" }));
 $("retry").addEventListener("click", () => send({ action: "retry_engine" }));
 $("back-to-add").addEventListener("click", () => { creating = false; renderWizard(); $("your-voice-title").focus(); });
 $("close-learning-help").addEventListener("click", () => { editing = null; renderWizard(); $("your-voice-title").focus(); });
+$("open-learning-app").addEventListener("click", (event) => {
+  const profile = ownProfile();
+  if (!editing || editing.userId !== state?.user.id || editing.id !== profile?.id) {
+    event.preventDefault();
+    return;
+  }
+  setLaunchTarget(event, $("open-learning-app"), profile);
+});
 $("show-admin-setup").addEventListener("click", () => {
   if (!state?.user.admin || busy) return;
   $("administration").open = true;

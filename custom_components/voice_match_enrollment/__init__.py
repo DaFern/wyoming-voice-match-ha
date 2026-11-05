@@ -1,12 +1,14 @@
-"""Development companion: no real speaker adapter or automatic pipeline routing."""
+"""Account-bound learning companion; no training from ordinary Assist traffic."""
 
 DOMAIN = "voice_match_enrollment"
 
 
 async def async_setup(hass, config):
+    from .launcher import register_panel
     from .websocket_api import register
     hass.data.setdefault(DOMAIN, {})
     register(hass)
+    await register_panel(hass)
     return True
 
 

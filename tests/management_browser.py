@@ -15,6 +15,7 @@ from pathlib import Path
 from aiohttp import ClientSession, web
 
 STATIC = Path(__file__).resolve().parents[1] / "voice_match/rootfs/opt/voice_match/static"
+LAUNCHER = Path(__file__).resolve().parents[1] / "custom_components/voice_match_enrollment/frontend/launch-panel.js"
 
 
 async def review(output):
@@ -41,10 +42,41 @@ async def review(output):
         state["profiles"] = [dict(own, enrolled=False)]
         return web.json_response({"ok": True, "id": own["id"]})
 
+    async def embedded(request):
+        # Real user-activation top navigation from a sandboxed same-origin frame.
+        return web.Response(content_type="text/html", text='''<!doctype html><html><head>
+          <meta name="viewport" content="width=device-width,initial-scale=1"></head>
+          <body style="margin:0"><iframe id="management" src="/" title="Voice Match"
+          style="width:100%;height:100vh;border:0" sandbox="allow-scripts allow-forms allow-same-origin allow-top-navigation-by-user-activation"></iframe></body></html>''')
+
+    async def launcher_page(request):
+        return web.Response(content_type="text/html", text='''<!doctype html><html><head>
+          <meta name="viewport" content="width=device-width,initial-scale=1"></head>
+          <body style="margin:0"><script type="module" src="/launcher-bootstrap.js"></script></body></html>''')
+
+    async def launcher_module(request):
+        return web.FileResponse(LAUNCHER)
+
+    async def bootstrap(request):
+        return web.Response(content_type="text/javascript", text='''
+          import "/voice_match_enrollment/launch-panel-v1.js";
+          window.launchMessages = []; window.launchReads = [];
+          const panel = document.createElement("voice-match-launch-panel");
+          panel.hass = { connected: true, user: { id: "alice" }, connection: {},
+            auth: { external: { config: { hasAssist: true }, fireMessage(message) { window.launchMessages.push(message); } } },
+            async callWS(message) { window.launchReads.push(message); return { user_id: "alice", profile_id: "alice-profile", pipeline_id: "learning-pipeline" }; }
+          };
+          document.body.append(panel);
+        ''')
+
     app = web.Application()
     app.router.add_get("/", page)
     app.router.add_get("/api/state", get_state)
     app.router.add_post("/api/action", action)
+    app.router.add_get("/embedded-management", embedded)
+    app.router.add_get("/voice-match-learning", launcher_page)
+    app.router.add_get("/voice_match_enrollment/launch-panel-v1.js", launcher_module)
+    app.router.add_get("/launcher-bootstrap.js", bootstrap)
     app.router.add_static("/static/", STATIC)
     runner = web.AppRunner(app)
     await runner.setup()
@@ -137,7 +169,8 @@ async def review(output):
                     assert await evaluate("!$('own-profile').textContent.includes('0.0 MB')")
                     state["profiles"] = [dict(own, pending="synthetic-pending", recording_bytes=32000)]
                     await evaluate("refresh(false)")
-                    await click("Resume learning")
+                    assert await evaluate("[...$('own-profile').querySelectorAll('a')].some(a => a.textContent === 'Resume learning' && a.target === '_top')")
+                    await click("Show learning steps")
                     assert await evaluate("$('learning-entry-step').textContent.includes('separate')")
                     await screenshot("04-resume-mobile.png")
                     state["learning_setup"] = {"paired": False}
@@ -160,6 +193,24 @@ async def review(output):
                     assert await evaluate("$('administration').hidden && $('learning-help').hidden")
                     assert await evaluate("!$('own-profile').textContent.includes('Alice')")
                     assert len(calls) == 1, "No recording, handoff or deletion calls"
+                    state.update(user={"id": "alice", "name": "Alice", "admin": False}, profiles=[own], learning_setup={"paired": True})
+                    await call("Emulation.setDeviceMetricsOverride", {
+                        "width": 390, "height": 844, "deviceScaleFactor": 1, "mobile": True,
+                    }, session)
+                    await call("Page.navigate", {"url": f"http://127.0.0.1:{port}/embedded-management"}, session)
+                    await wait_for("Boolean(document.querySelector('iframe')?.contentDocument.querySelector('#own-profile a'))")
+                    point = await evaluate("(() => { const f = document.querySelector('iframe'); const a = f.contentDocument.querySelector('#own-profile a'); const r = a.getBoundingClientRect(); const fr = f.getBoundingClientRect(); return { x: fr.x + r.x + r.width/2, y: fr.y + r.y + r.height/2 }; })()")
+                    for event in ("mousePressed", "mouseReleased"):
+                        await call("Input.dispatchMouseEvent", {"type": event, "x": point["x"], "y": point["y"], "button": "left", "clickCount": 1}, session)
+                    await wait_for("location.pathname === '/voice-match-learning' && window.launchMessages?.length === 1")
+                    assert await evaluate("location.hash === '' && history.state.voiceMatchLaunchConsumed")
+                    assert await evaluate("JSON.stringify(window.launchMessages) === JSON.stringify([{type:'assist/show',payload:{pipeline_id:'learning-pipeline',start_listening:true}}])")
+                    assert await evaluate("window.launchReads.length === 1")
+                    await screenshot("07-companion-launcher-mobile.png")
+                    await call("Page.reload", {}, session)
+                    await wait_for("document.querySelector('voice-match-launch-panel')?.shadowRoot.querySelector('#status')?.textContent.includes('already been used')")
+                    assert await evaluate("window.launchMessages.length === 0 && window.launchReads.length === 0"), "Reload must not repeat the native request"
+                    assert len(calls) == 1, "Launcher navigation cannot create training mutations"
                     # Let Chromium flush/stop its children before removing its
                     # temporary profile; terminating only the parent can race
                     # outstanding child writes during TemporaryDirectory cleanup.
