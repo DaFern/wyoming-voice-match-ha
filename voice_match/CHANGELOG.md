@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.4.5
+
+- Connect own-account Learn/Resume buttons to a Home Assistant-hosted launcher
+  that requests native Android Companion Assist with the learning assistant
+  selected. Manual steps remain available when native launch is unavailable.
+- Resolve the learning assistant from its actual STT and conversation entities,
+  with fresh normal-login and own-profile checks. Reject mismatched accounts,
+  unavailable entities, ambiguous assistants and multiple enabled companions.
+- Keep recording consent separate. Launch discovery grants no session or sample
+  permit, and a new Assist conversation still needs the spoken recording notice
+  and separate consent before resuming saved samples.
+- Suppress duplicate launches on busy clicks, reload and Back. Stale/late reads,
+  changed accounts/connections and uncertain native dispatch are not blindly
+  retried. Native dispatch is requested, not claimed acknowledged.
+- Requires the matching companion launcher code, frontend asset and manifest
+  update plus a Core restart. Updating the add-on alone does not install the
+  HA-hosted launcher. See docs/NATIVE_APP_LAUNCH.md for deployment and test limits.
+- Android may remember Voice Learning as the last-used assistant. Automatic
+  switch-back is not implemented; choose the usual assistant afterwards. The
+  server's global default, voice data, thresholds and pairing remain unchanged.
+- Validation: 199 unit tests passed, 4 skipped; 82 native HA tests passed. Chromium
+  exercised the real iframe-to-top-level link and simulated native dispatch.
+  Actual Android Companion handoff acceptance remains pending deployment/testing.
+
 ## 0.4.4
 
 - Replace the blocked management form with an own-account “Your voice” screen,
