@@ -115,6 +115,12 @@ class LearningBridge:
             if data.get("own_only") is True:
                 self.own_sessions.add(result["session_token"])
             return result
+        if operation in {"resume_preview", "resume"}:
+            result = await runtime.resume_learning(actor, data, users, bridge_boot=boot, preview=operation == "resume_preview")
+            if operation == "resume":
+                self.sessions[result["session_token"]] = runtime.active
+                self.own_sessions.add(result["session_token"])
+            return result
         job = self.job(runtime, actor, data)
         if operation == "discard":
             if set(data) != {"source", "session_token", "confirm"} or data.get("confirm") is not True:

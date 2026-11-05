@@ -17,7 +17,9 @@ class DiagnosticsTests(unittest.TestCase):
         cases = {"Start learning.": "start_learning", " NO! ": "stop", "pause learning": "stop",
                  "check status": "status", "No,": "stop", "Please cancel learning.": "cancel",
                  "“start learning”": "start_learning_punctuation", NOTICE: "notice_like",
-                  "yes": "other", "start voice learning": "uncertain_control", "learn my voice": "uncertain_control",
+                 "yes": "other", "start voice learning": "uncertain_control", "learn my voice": "uncertain_control",
+                 "Continue learning.": "continue_learning", "“continue learning”": "continue_learning_punctuation",
+                 "Privacy details": "privacy",
                  "yes please": "other", "unrelated private reading phrase": "other"}
         for text, category in cases.items():
             with self.subTest(category=category):

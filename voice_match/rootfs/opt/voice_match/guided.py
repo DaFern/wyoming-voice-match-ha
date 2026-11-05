@@ -240,6 +240,50 @@ class Runtime:
             finally:
                 job.processing = False
 
+    async def resume_learning(self, actor, data, users, *, bridge_boot, preview):
+        """Inspect/resume only the exact latest own-account paused generation.
+
+        Preview is read-only: no begin, permit, new session or credential grant.
+        Resume is a separate fresh affirmative consent turn with optimistic
+        count/target checks under the same lock as profile/session mutation.
+        """
+        fields = {"source", "session_token"} if preview else {"source", "session_token", "count", "target", "consent"}
+        if set(data) != fields or (not preview and data.get("consent") is not True):
+            raise ValueError("Explicit resume confirmation required")
+        if self.active and self.active.processing:
+            raise ValueError("Please wait for voice processing to finish")
+        async with self.lock:
+            if bridge_boot != self.learning_bridge.boot:
+                raise Denied("Learning bridge pairing changed")
+            job = self.learning_bridge.job(self, actor, data)
+            profile = self.store.get(job.voice_id, actor)
+            if (data["session_token"] not in self.learning_bridge.own_sessions
+                    or profile.get("owner") != actor["id"]
+                    or self.learning_bridge.latest_jobs.get(job.voice_id) is not job
+                    or profile.get("pending") != job.recording.options["enrollment_session"]):
+                raise Denied("Paused learning session changed")
+            if (self.active is not None or job.outcome != "paused" or job.processing or job.error
+                    or job.recording.complete.exists()):
+                raise ValueError("Paused learning is unavailable or needs attention")
+            count, target = job.recording.count, job.recording.options["enrollment_samples"]
+            if not 0 <= count < target <= 100 or self.options["enrollment_samples"] != target:
+                raise ValueError("Saved progress cannot be resumed")
+            if preview:
+                return {"id": job.voice_id, "count": count, "target": target}
+            if type(data["count"]) is not int or type(data["target"]) is not int or (data["count"], data["target"]) != (count, target):
+                raise ValueError("Saved progress changed; obtain a fresh resume confirmation")
+            self.learning_bridge.sessions = {
+                token: old for token, old in self.learning_bridge.sessions.items()
+                if old.learning.expires > time.monotonic()
+            }
+            self.learning_bridge.own_sessions.intersection_update(self.learning_bridge.sessions)
+            if len(self.learning_bridge.sessions) >= 32:
+                raise ValueError("Too many learning sessions")
+            return await self.begin(actor, {
+                "id": job.voice_id, "source": data["source"], "own_only": True,
+                "consent": True, "isolation_confirmed": True,
+            }, users)
+
     async def discard_learning(self, actor, data, *, bridge_boot):
         """Discard one unfinished generation, never a newer job or installed voice."""
         if set(data) != {"source", "session_token", "confirm"} or data.get("confirm") is not True:

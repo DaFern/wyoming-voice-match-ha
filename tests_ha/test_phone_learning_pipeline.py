@@ -18,7 +18,12 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from test_learning_pipeline_feasibility import phone_probe  # noqa: F401 - pytest fixture
 
 from custom_components.voice_match_enrollment import DOMAIN
-from custom_components.voice_match_enrollment.phone_flow import MARKER, NOTICE
+from custom_components.voice_match_enrollment.phone_flow import (
+    INTRO,
+    MARKER,
+    NOTICE,
+    PRIVACY_DETAILS,
+)
 
 
 @dataclass
@@ -52,6 +57,14 @@ class Backend:
             self.count = 0
             return {"outcome": "cancelled"}
         assert data["session_token"] == "synthetic-session"
+        if operation == "resume_preview":
+            assert not self.active
+            return {"id": "assigned-profile", "count": self.count, "target": 2}
+        if operation == "resume":
+            assert not self.active and data["consent"] is True
+            assert data["count"] == self.count and data["target"] == 2
+            self.active = True
+            return {"session_token": "synthetic-session", "expires_in": 900}
         if operation == "permit":
             self.permit_serial += 1
             self.current_permit = f"synthetic-permit-{self.permit_serial}"
@@ -95,7 +108,8 @@ async def phone(hass, hass_ws_client, hass_admin_user, phone_probe):  # noqa: F8
                     9: "Yes", 10: "Start voice learning", 11: "Learn my voice",
                     12: "Cancel learning", 13: "Pause, learning.",
                     14: "Please cancel learning!", 15: "Paws learning",
-                    16: "Don't cancel learning", 17: "Cancel learning cancel learning"}[clip[0]]
+                    16: "Don't cancel learning", 17: "Cancel learning cancel learning",
+                    18: "Continue learning", 19: "Privacy details"}[clip[0]]
             return stt.SpeechResult(text, stt.SpeechResultState.SUCCESS)
 
     source = Whisper()
@@ -169,7 +183,7 @@ def speech(events):
 
 
 async def test_phone_uses_real_learning_entities_and_only_post_consent_audio_is_submitted(phone):
-    assert "biometric voiceprint" in speech(await phone["run"](1))
+    assert "Before we begin" in speech(await phone["run"](1))
     assert not phone["backend"].active
     assert "Sample 1 of 2" in speech(await phone["run"](2))
     assert phone["backend"].count == 0
@@ -181,10 +195,10 @@ async def test_phone_uses_real_learning_entities_and_only_post_consent_audio_is_
 
 
 async def test_native_launch_phrases_and_yes_are_not_consent(phone):
-    assert "biometric voiceprint" in speech(await phone["run"](2))
+    assert "Before we begin" in speech(await phone["run"](2))
     assert not phone["backend"].active
     for marker in (9, 10, 11, 8):
-        assert "To consent and begin, say start learning" in speech(await phone["run"](marker))
+        assert "If you're happy to continue" in speech(await phone["run"](marker))
         assert not phone["backend"].active
     assert "Sample 1 of 2" in speech(await phone["run"](2))
     assert phone["backend"].count == 0
@@ -218,8 +232,8 @@ async def test_native_cancel_discards_but_pause_preserves_samples(phone):
     await phone["run"](3)
     assert "paused" in speech(await phone["run"](13))
     assert phone["backend"].count == 1
-    assert "biometric voiceprint" in speech(await phone["run"](1))
-    assert "Sample 2 of 2" in speech(await phone["run"](2))
+    assert "Welcome back" in speech(await phone["run"](1))
+    assert "Sample 2 of 2" in speech(await phone["run"](18))
     assert "deleted" in speech(await phone["run"](14))
     assert phone["backend"].count == 0
     assert not phone["backend"].active
@@ -232,7 +246,7 @@ async def test_other_login_cannot_train_even_with_the_same_user_and_chat(hass, h
     await phone["run"](2)
     login = await hass.auth.async_create_refresh_token(hass_admin_user, client_id="http://other-phone-login")
     second = await hass_ws_client(hass, hass.auth.async_create_access_token(login))
-    assert "biometric voiceprint" in speech(await phone["run"](3, selected_client=second))
+    assert "Before we begin" in speech(await phone["run"](3, selected_client=second))
     assert phone["backend"].count == 0
 
 
@@ -307,7 +321,7 @@ async def test_native_diagnostics_distinguish_repeated_notice_from_recognised_no
     logger = "custom_components.voice_match_enrollment.phone_diagnostics"
     with caplog.at_level(logging.INFO, logger=logger):
         await phone["run"](1)
-        assert "biometric voiceprint" in speech(await phone["run"](8))
+        assert "Before we begin" in speech(await phone["run"](8))
         assert "No learning started" in speech(await phone["run"](7))
     records = [entry for entry in caplog.records if entry.name == logger]
     output = "\n".join(entry.getMessage() for entry in records)
@@ -510,8 +524,98 @@ async def close_phone_turn(hass, phone, client):
         await asyncio.gather(*tasks)
 
 
+async def test_native_resume_across_completed_sockets_needs_preview_then_separate_confirmation(hass, hass_ws_client, phone):
+    assert speech(await phone["run"](1)) == NOTICE
+    assert speech(await phone["run"](2)).startswith(INTRO)
+    assert INTRO not in speech(await phone["run"](3))
+    await phone["run"](4)
+    await close_phone_turn(hass, phone, phone["client"])
+    second = await hass_ws_client(hass)
+    reply = speech(await phone["run"](18, selected_client=second))
+    assert "Welcome back! You've completed 1 of 2 voice samples" in reply
+    assert "Cancel voice learning" in reply
+    assert NOTICE not in reply and INTRO not in reply
+    assert not phone["backend"].active
+    assert not [call for call in phone["backend"].calls if call[0] == "resume"]
+    await close_phone_turn(hass, phone, second)
+    third = await hass_ws_client(hass)
+    reply = speech(await phone["run"](18, selected_client=third))
+    assert "Sample 2 of 2" in reply and INTRO not in reply
+    assert phone["backend"].active and phone["backend"].count == 1
+    assert len([call for call in phone["backend"].calls if call[0] == "sample"]) == 1
+    assert len([call for call in phone["backend"].calls if call[0] == "resume"]) == 1
+    await close_phone_turn(hass, phone, third)
+    fourth = await hass_ws_client(hass)
+    assert "complete" in speech(await phone["run"](3, selected_client=fourth))
+    assert phone["backend"].count == 2
+
+
+async def test_native_resume_cancel_before_confirmation_never_begins_or_uploads(phone):
+    for marker in (1, 2, 3, 4):
+        await phone["run"](marker)
+    assert "Welcome back" in speech(await phone["run"](18))
+    assert "deleted" in speech(await phone["run"](14))
+    assert not phone["backend"].active and phone["backend"].count == 0
+    assert not [call for call in phone["backend"].calls if call[0] == "resume"]
+    assert len([call for call in phone["backend"].calls if call[0] == "begin"]) == 1
+    assert len([call for call in phone["backend"].calls if call[0] == "sample"]) == 1
+
+
+@pytest.mark.parametrize("changed", ["chat", "login", "expired", "interrupted"])
+async def test_native_unverified_continuity_uses_fresh_notice_not_resume(hass, hass_ws_client, hass_admin_user, phone, changed):
+    for marker in (1, 2, 3, 4):
+        await phone["run"](marker)
+    client, chat = phone["client"], "phone-chat"
+    flow = next(iter(phone["runtime"].controller.flows.values()))
+    if changed == "chat":
+        chat = "different-chat"
+    elif changed == "login":
+        login = await hass.auth.async_create_refresh_token(hass_admin_user, client_id="http://new-resume-login")
+        client = await hass_ws_client(hass, hass.auth.async_create_access_token(login))
+    elif changed == "expired":
+        flow.expires = 0
+    else:
+        flow.must_reconsent = True
+    reply = speech(await phone["run"](18, selected_client=client, chat=chat))
+    assert NOTICE in reply and "Welcome back" not in reply
+    assert not phone["backend"].active and phone["backend"].count == 1
+    assert not [call for call in phone["backend"].calls if call[0] in {"resume_preview", "resume"}]
+    assert NOTICE in speech(await phone["run"](18, selected_client=client, chat=chat))
+    assert not phone["backend"].active
+
+
+async def test_native_privacy_is_available_before_consent_and_is_not_sample_audio(phone):
+    reply = speech(await phone["run"](19))
+    assert PRIVACY_DETAILS in reply and reply.endswith(NOTICE)
+    assert not phone["backend"].active
+    assert speech(await phone["run"](2)).startswith(INTRO)
+    reply = speech(await phone["run"](19))
+    assert PRIVACY_DETAILS in reply and "Sample 1 of 2" in reply and INTRO not in reply
+    assert phone["backend"].count == 0
+    assert not [call for call in phone["backend"].calls if call[0] == "sample"]
+
+
+async def test_native_resume_rechecks_login_before_mutating_resume(phone):
+    for marker in (1, 2, 3, 4, 18):
+        await phone["run"](marker)
+    controller = phone["runtime"].controller
+    original = controller.check
+    checks = 0
+    def revoked(frame):
+        nonlocal checks
+        checks += 1
+        if checks == 2:
+            raise ValueError("Synthetic revoked login before resume")
+        return original(frame)
+    with patch.object(controller, "check", side_effect=revoked):
+        assert "could not be verified" in speech(await phone["run"](18))
+    assert checks == 2
+    assert not phone["backend"].active
+    assert not [call for call in phone["backend"].calls if call[0] == "resume"]
+
+
 async def test_every_turn_can_reconnect_same_login_with_fresh_permits_and_pause(hass, hass_ws_client, phone):
-    assert "biometric voiceprint" in speech(await phone["run"](1))
+    assert "Before we begin" in speech(await phone["run"](1))
     await close_phone_turn(hass, phone, phone["client"])
     second = await hass_ws_client(hass)
     assert "Sample 1 of 2" in speech(await phone["run"](2, selected_client=second))
@@ -530,7 +634,9 @@ async def test_every_turn_can_reconnect_same_login_with_fresh_permits_and_pause(
     assert "paused" in speech(await phone["run"](4, selected_client=fourth))
     assert phone["backend"].count == 1
     assert not phone["backend"].active
-    assert not phone["runtime"].controller.flows
+    paused = next(iter(phone["runtime"].controller.flows.values()))
+    assert paused.phase == "paused"
+    assert paused.permit is None and paused.resume_snapshot is None
 
 
 async def test_no_after_notice_reconnect_cancels_without_training(hass, hass_ws_client, phone):
@@ -546,9 +652,9 @@ async def test_same_login_new_chat_and_expired_notice_require_fresh_consent(hass
     await phone["run"](1)
     await close_phone_turn(hass, phone, phone["client"])
     second = await hass_ws_client(hass)
-    assert "biometric voiceprint" in speech(await phone["run"](2, selected_client=second, chat="other-chat"))
+    assert "Before we begin" in speech(await phone["run"](2, selected_client=second, chat="other-chat"))
     next(iter(phone["runtime"].controller.flows.values())).expires = 0
-    assert "biometric voiceprint" in speech(await phone["run"](2, selected_client=second, chat="other-chat"))
+    assert "Before we begin" in speech(await phone["run"](2, selected_client=second, chat="other-chat"))
     assert not phone["backend"].active
 
 
@@ -639,7 +745,7 @@ async def test_disconnect_during_a_consented_capture_requires_new_notice(hass, h
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
     second = await hass_ws_client(hass)
-    assert "biometric voiceprint" in speech(await phone["run"](2, selected_client=second))
+    assert "Before we begin" in speech(await phone["run"](2, selected_client=second))
     assert phone["backend"].count == 0
     assert not phone["backend"].active
     assert not [call for call in phone["backend"].calls if call[0] == "sample"]
@@ -666,7 +772,7 @@ async def test_new_login_cannot_inherit_notice_after_old_socket_closes(hass, has
     await close_phone_turn(hass, phone, phone["client"])
     login = await hass.auth.async_create_refresh_token(hass_admin_user, client_id="http://different-login")
     second = await hass_ws_client(hass, hass.auth.async_create_access_token(login))
-    assert "biometric voiceprint" in speech(await phone["run"](2, selected_client=second))
+    assert "Before we begin" in speech(await phone["run"](2, selected_client=second))
     assert not phone["backend"].active
     assert len(phone["runtime"].controller.flows) == 2
 
@@ -702,5 +808,5 @@ async def test_actual_login_removal_revokes_scope_without_disabling_account(hass
     with pytest.raises(ValueError):
         phone["runtime"].authorize(connection, hass_admin_user.id)
     other = await hass_ws_client(hass)
-    assert "biometric voiceprint" in speech(await phone["run"](2, selected_client=other))
+    assert "Before we begin" in speech(await phone["run"](2, selected_client=other))
     assert not phone["backend"].active

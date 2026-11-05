@@ -13,13 +13,23 @@ from .phone_diagnostics import record
 
 MARKER = "Voice learning input"
 NOTICE = (
+    "Before we begin, I'll need to record some short samples of your voice so I can recognise you in future. "
+    "Your recordings will be stored on this Home Assistant system, and you can stop at any time. "
+    'If you\'re happy to continue, say "Start learning".'
+)
+INTRO = (
+    "Great! I'll give you a few sentences to read aloud. "
+    'You can say "Pause learning" to take a break, or "Cancel voice learning" to discard this session. '
+    "Let's begin!"
+)
+PRIVACY_DETAILS = (
     "Voice learning makes recordings and a biometric voiceprint for your signed-in Home Assistant account. "
-    "Recordings are stored on this system and deleted after a validated replacement is installed. "
-    "Your selected Whisper service also processes the speech. Only you should use this phone microphone. "
-    "Your existing voiceprint stays until its replacement validates. A voice match is not authentication. "
-    "To consent and begin, say start learning. To leave without starting, say cancel learning. "
-    "During learning, say pause learning to keep unfinished recordings, or cancel learning to delete "
-    "this unfinished session's recordings. Your existing voiceprint is kept."
+    "Recordings are stored by this system and deleted after a validated replacement is installed. "
+    "Your selected speech-to-text service also processes your speech; its privacy and retention rules apply. "
+    "Only you should use this phone microphone. Your existing voiceprint stays until its replacement validates. "
+    "A voice match is not authentication. Pause learning keeps unfinished recordings. "
+    "Cancel voice learning deletes only the bound unfinished session's recordings, not the installed voiceprint "
+    "or old backups. Deleting files does not guarantee secure erasure from disk."
 )
 STOP = {"no", "stop", "pause", "stop learning", "pause learning", "stop voice learning", "pause voice learning"}
 CANCEL = {"cancel", "cancel learning", "cancel voice learning"}
@@ -35,7 +45,12 @@ def control_category(text):
     command = text.casefold().strip(" .!?\r\n\t")
     if command == "start learning":
         return "start_learning"
-    if "biometric voiceprint" in command and "to consent and begin" in command:
+    if command == "continue learning":
+        return "continue_learning"
+    if (("record some short samples of your voice" in command and "home assistant system" in command)
+            or ("welcome back" in command and "voice samples" in command and "continue learning" in command)
+            or ("give you a few sentences to read aloud" in command and "cancel voice learning" in command)
+            or ("biometric voiceprint" in command and "not authentication" in command)):
         return "notice_like"
     words = re.findall(r"[^\W_]+", unicodedata.normalize("NFKC", text).casefold())
     control = " ".join(words).removeprefix("please ").removesuffix(" please")
@@ -45,8 +60,12 @@ def control_category(text):
         return "stop"
     if control in STATUS:
         return "status"
+    if control in {"privacy", "privacy details", "recording privacy"}:
+        return "privacy"
     if control == "start learning":
         return "start_learning_punctuation"
+    if control == "continue learning":
+        return "continue_learning_punctuation"
     if (set(words) & {"pause", "stop", "cancel"}
             or (len(words) <= 6 and ("learning" in words
                 or set(words) & {"paws", "council", "counsel", "cancelled", "canceled", "pausing"}))
@@ -92,6 +111,8 @@ class PhoneFlow:
     must_reconsent: bool = False
     begin_uncertain: bool = False
     discard_uncertain: bool = False
+    resume_snapshot: dict | None = None
+    intro_pending: bool = True
 
 
 class PhoneController:
@@ -150,7 +171,7 @@ class PhoneController:
                 else:
                     flow.must_reconsent = True
 
-    async def _pause(self, key, flow):
+    async def _pause(self, key, flow, *, retain=False):
         if flow.discard_uncertain:
             # Disconnect/chat changes cannot silently convert unknown deletion
             # into a successful pause or allow a fresh begin over that session.
@@ -167,13 +188,40 @@ class PhoneController:
             try:
                 result = await self.bridge.call("cancel", flow.user_id, flow.credentials)
                 if result.get("outcome") in {"paused", "complete", "expired", "cancelled"}:
-                    self.flows.pop(key, None)
+                    if retain and not flow.must_reconsent and result.get("outcome") == "paused":
+                        flow.phase, flow.permit, flow.resume_snapshot = "paused", None, None
+                    else:
+                        self.flows.pop(key, None)
                     return True
             except BridgeError:
                 pass
         flow.phase = "attention"
         flow.permit = None
         return False
+
+    async def _resume_notice(self, flow, frame):
+        """Read current, authorised paused-generation metadata without beginning recording."""
+        self.check(frame)
+        frame.audio, frame.permit = b"", None
+        flow.resume_snapshot = None
+        try:
+            snapshot = await self.bridge.call("resume_preview", frame.user_id, flow.credentials)
+        except BridgeError:
+            return PhoneReply("I couldn't verify your paused session. No learning has resumed. Check Voice Match management.")
+        self.check(frame)
+        if (snapshot.get("id") != flow.profile_id
+                or type(snapshot.get("count")) is not int or type(snapshot.get("target")) is not int
+                or not 0 <= snapshot["count"] < snapshot["target"] <= 100):
+            return PhoneReply("I couldn't verify your saved progress. No learning has resumed. Check Voice Match management.")
+        flow.resume_snapshot = snapshot
+        flow.phase, flow.issued = "resume_consent", time.monotonic()
+        flow.expires = min(flow.expires, flow.issued + 120)
+        record("flow", "resume_notice")
+        return PhoneReply(
+            f"Welcome back! You've completed {snapshot['count']} of {snapshot['target']} voice samples. "
+            'Say "Continue learning" when you\'re ready to carry on. '
+            'Say "Cancel voice learning" to discard your unfinished recordings.', True,
+        )
 
     async def _discard(self, key, flow, frame):
         """Delete only via the backend's bound-session operation; never broad cleanup."""
@@ -219,7 +267,9 @@ class PhoneController:
         flow.issued = time.monotonic()
         prefix = "Sample not saved. Please try again. " if state["notice"] else ""
         flow.prompt = f"{prefix}Sample {permit['count'] + 1} of {state['target']}. Read aloud: {permit['prompt']}"
-        return PhoneReply(flow.prompt, True)
+        introduction = INTRO + " " if flow.intro_pending and state["count"] == 0 else ""
+        flow.intro_pending = False
+        return PhoneReply(introduction + flow.prompt, True)
 
     async def handle(self, frame):
         if self.closing or not frame.valid or not frame.login_id:
@@ -228,6 +278,7 @@ class PhoneController:
         async with asyncio.timeout(60), self.lock:
             self.check(frame)
             previous = self.flows.get(self.key(frame))
+            needs_fresh_consent = bool(previous and (previous.must_reconsent or previous.expires <= time.monotonic()))
             if previous is not None:
                 continuity = "expired_scope" if previous.expires <= time.monotonic() else "same_scope"
             elif any(flow.login_id == frame.login_id and flow.user_id == frame.user_id
@@ -235,6 +286,7 @@ class PhoneController:
                 continuity = "chat_changed"
             elif any(flow.user_id == frame.user_id for flow in self.flows.values()):
                 continuity = "connection_changed"
+                needs_fresh_consent = True
             elif any(flow.connection is frame.connection for flow in self.flows.values()):
                 continuity = "account_changed"
             else:
@@ -246,9 +298,10 @@ class PhoneController:
                 if previous.expires <= time.monotonic() and not previous.discard_uncertain:
                     self.flows.pop(key, None)
                 elif (previous.login_id == frame.login_id and previous.user_id == frame.user_id
-                      and previous.conversation_id != frame.conversation_id
-                      and not await self._pause(key, previous)):
-                    return PhoneReply("The previous learning session needs attention or is still processing. Check Voice Match management before starting again.")
+                      and previous.conversation_id != frame.conversation_id):
+                    needs_fresh_consent = True
+                    if not await self._pause(key, previous):
+                        return PhoneReply("The previous learning session needs attention or is still processing. Check Voice Match management before starting again.")
             key = self.key(frame)
             flow = self.flows.get(key)
             command = frame.text.casefold().strip(" .!?\r\n\t")
@@ -278,23 +331,56 @@ class PhoneController:
                     if frame.started_at <= flow.issued:
                         return PhoneReply("That cancellation recording began before the current prompt. Nothing was deleted. Close Assist and check Voice Match management.")
                     return await self._discard(key, flow, frame)
-                if await self._pause(key, flow):
+                if await self._pause(key, flow, retain=True):
                     record("flow", "stop_paused")
                     return PhoneReply("Voice learning is paused. Partial samples are kept for an explicitly consented resume.")
                 record("flow", "stop_unverified")
                 return PhoneReply("I could not verify the pause. Processing may still be running; check Voice Match management.")
-            if flow is not None and flow.credentials is not None and control in {
-                "uncertain_control", "notice_like", "start_learning", "start_learning_punctuation",
-            }:
-                frame.audio, frame.permit = b"", None
-                if await self._pause(key, flow):
-                    record("flow", "control_guard_paused")
-                    return PhoneReply("That sounded like a learning control, so it was not saved. Learning is paused and unfinished recordings are kept. Start a new conversation for fresh consent.")
-                return PhoneReply("That recording was not submitted. I could not verify the pause. Close Assist and check Voice Match management.")
             if flow is not None and flow.must_reconsent:
                 if not await self._pause(key, flow):
                     return PhoneReply("The interrupted learning session needs attention. Check Voice Match management before starting again.")
                 flow = None
+                needs_fresh_consent = True
+            if flow is not None and flow.phase in {"paused", "resume_consent"}:
+                flow.connection = frame.connection
+                if flow.phase == "resume_consent" and frame.started_at <= flow.issued:
+                    return PhoneReply("That recording began before the resume prompt. Please wait for the prompt to finish and record again.")
+                if flow.phase == "resume_consent" and command == "continue learning" and flow.resume_snapshot is not None:
+                    snapshot, credentials = flow.resume_snapshot, flow.credentials
+                    self.check(frame)
+                    flow.resume_snapshot, flow.credentials = None, None
+                    flow.phase, flow.begin_uncertain = "attention", True
+                    frame.audio, frame.permit = b"", None
+                    result = await self.bridge.call("resume", frame.user_id, {
+                        **credentials, "count": snapshot["count"], "target": snapshot["target"], "consent": True,
+                    })
+                    flow.credentials = {"session_token": result["session_token"], "source": flow.source}
+                    flow.begin_uncertain, flow.intro_pending = False, False
+                    flow.expires = time.monotonic() + 900
+                    record("flow", "resume_started")
+                    return await self._next(flow, frame)
+                reply = await self._resume_notice(flow, frame)
+                if control == "privacy":
+                    reply.speech = PRIVACY_DETAILS + " " + reply.speech
+                return reply
+            if control == "privacy" and flow is not None:
+                frame.audio, frame.permit = b"", None
+                if flow.credentials is not None:
+                    reply = await self._next(flow, frame)
+                    reply.speech = PRIVACY_DETAILS + " " + reply.speech
+                    return reply
+                if not flow.begin_uncertain:
+                    flow.issued = time.monotonic()
+                    return PhoneReply(PRIVACY_DETAILS + " " + NOTICE, True)
+            if flow is not None and flow.credentials is not None and control in {
+                "uncertain_control", "notice_like", "start_learning", "start_learning_punctuation",
+                "continue_learning", "continue_learning_punctuation",
+            }:
+                frame.audio, frame.permit = b"", None
+                if await self._pause(key, flow, retain=True):
+                    record("flow", "control_guard_paused")
+                    return PhoneReply("That sounded like a learning control, so it was not saved. Learning is paused and unfinished recordings are kept. Ask to continue when you're ready.")
+                return PhoneReply("That recording was not submitted. I could not verify the pause. Close Assist and check Voice Match management.")
             if flow is None:
                 if len(self.flows) >= 16:
                     return PhoneReply("Phone learning is busy. Try again later.")
@@ -304,7 +390,10 @@ class PhoneController:
                 flow = PhoneFlow(frame.connection, frame.user_id, frame.conversation_id, own["id"], frame.login_id)
                 self.flows[key] = flow
                 record("flow", "notice_new")
-                return PhoneReply(NOTICE, True)  # Even an initial 'start learning' is never consent.
+                prefix = "For privacy, please confirm again before continuing. " if needs_fresh_consent else ""
+                if control == "privacy":
+                    prefix += PRIVACY_DETAILS + " "
+                return PhoneReply(prefix + NOTICE, True)  # The first request is never consent.
             flow.connection = frame.connection
             if frame.started_at <= flow.issued:
                 record("flow", "stale_turn")
@@ -312,6 +401,7 @@ class PhoneController:
             if flow.phase == "consent":
                 if command != "start learning":
                     record("flow", "notice_repeat")
+                    flow.issued = time.monotonic()
                     return PhoneReply(NOTICE, True)
                 flow.phase, flow.expires = "attention", time.monotonic() + 900
                 self.check(frame)

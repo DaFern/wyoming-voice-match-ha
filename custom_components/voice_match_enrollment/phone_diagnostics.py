@@ -12,10 +12,11 @@ RESULTS = {
     "notice_repeat", "stop_no_session", "stop_paused", "stop_unverified",
     "stale_turn", "closing", "prepare",
     "cancel_before_start", "cancel_discarded", "cancel_unverified", "control_guard_paused",
+    "resume_notice", "resume_started",
 }
-CONTROLS = {"none", "start_learning", "stop", "cancel", "uncertain_control", "status", "start_learning_punctuation", "notice_like", "other"}
+CONTROLS = {"none", "start_learning", "continue_learning", "stop", "cancel", "uncertain_control", "status", "privacy", "start_learning_punctuation", "continue_learning_punctuation", "notice_like", "other"}
 CONTINUITY = {"none", "new_scope", "same_scope", "expired_scope", "chat_changed", "connection_changed", "account_changed"}
-PHASES = {"none", "consent", "sample", "processing", "attention"}
+PHASES = {"none", "consent", "resume_consent", "paused", "sample", "processing", "attention"}
 
 
 def _allowed(value, choices):

@@ -33,7 +33,7 @@ class PhoneLearningTests(unittest.IsolatedAsyncioTestCase):
     async def test_first_start_only_gets_notice_second_start_consents_neither_is_a_sample(self):
         await self.make_phone()
         reply = await self.say("start learning")
-        self.assertIn("biometric voiceprint", reply.speech)
+        self.assertIn("Before we begin", reply.speech)
         self.assertIsNone(self.runtime.active)
         reply = await self.say("Start learning.")
         self.assertIn("Sample 1 of 2", reply.speech)
@@ -46,7 +46,7 @@ class PhoneLearningTests(unittest.IsolatedAsyncioTestCase):
         await self.make_phone()
         for text in ("learn my voice", "start voice learning", "yes", "yes please", "start learning please"):
             reply = await self.say(text)
-            self.assertIn("To consent and begin, say start learning", reply.speech)
+            self.assertIn("If you're happy to continue", reply.speech)
             self.assertTrue(reply.continue_conversation)
             self.assertIsNone(self.runtime.active)
         reply = await self.say("Start learning!")
@@ -90,8 +90,8 @@ class PhoneLearningTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.gather(*list(self.runtime.tasks))
         job = self.runtime.active
         await self.say("pause learning")
-        await self.say("start")
-        reply = await self.say("Cancel learning,")
+        await self.say("start", conversation_id="fresh-chat")
+        reply = await self.say("Cancel learning,", conversation_id="fresh-chat")
         self.assertIn("No learning started", reply.speech)
         self.assertIn("earlier paused recordings are unchanged", reply.speech)
         self.assertEqual(job.recording.count, 1)
@@ -107,7 +107,7 @@ class PhoneLearningTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("paused", reply.speech)
         self.assertEqual(job.recording.count, 1)
         await self.say("start")
-        self.assertIn("Sample 2 of 2", (await self.say("start learning")).speech)
+        self.assertIn("Sample 2 of 2", (await self.say("continue learning")).speech)
         reply = await self.say("Cancel—learning, please.")
         self.assertIn("cancelled", reply.speech)
         self.assertIn("deleted", reply.speech)
@@ -209,7 +209,7 @@ class PhoneLearningTests(unittest.IsolatedAsyncioTestCase):
         await self.say("start")
         await self.say("start learning")
         reply = await self.say("a phrase from another phone", connection=object())
-        self.assertIn("biometric voiceprint", reply.speech)
+        self.assertIn("Before we begin", reply.speech)
         self.assertEqual(self.runtime.active.recording.count, 0)
         reply = await self.say("a phrase from Bob", user_id="bob", connection=object())
         self.assertIn("assigned", reply.speech)
@@ -221,11 +221,11 @@ class PhoneLearningTests(unittest.IsolatedAsyncioTestCase):
         flow = next(iter(self.phone.flows.values()))
         flow.expires = 0
         reply = await self.say("start learning")
-        self.assertIn("biometric voiceprint", reply.speech)
+        self.assertIn("Before we begin", reply.speech)
         self.assertIsNone(self.runtime.active)
         await self.say("start learning")
         reply = await self.say("new chat", conversation_id="different-chat")
-        self.assertIn("biometric voiceprint", reply.speech)
+        self.assertIn("Before we begin", reply.speech)
         self.assertIsNone(self.runtime.active)
 
     async def test_short_clip_repeats_phrase_without_count_advancement(self):

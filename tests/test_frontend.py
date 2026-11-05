@@ -32,6 +32,15 @@ class Page(HTMLParser):
 
 
 class FrontendTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("node"), "Node required for launch prototype")
+    def test_isolated_learning_launch_contract(self):
+        result = subprocess.run(
+            [shutil.which("node"), str(Path(__file__).with_name("learning_launch.cjs"))],
+            capture_output=True, text=True, timeout=15, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Learning launch prototype checks passed", result.stdout)
+
     def page(self):
         page = Page()
         page.feed((STATIC / "index.html").read_text())
