@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — combined integration distribution preparation
+
+- Link administrator learning setup to the combined development integration's
+  custom-HACS installation/beta policy, while retaining standalone setup.
+- Reconcile documentation with the 0.4.5 baseline and distinguish reported native
+  Android launch from unverified combined clean-install/phone acceptance.
+- Documentation/link changes only; no manifest bump, release, deployment, key,
+  protocol, recording or pipeline change. The combined beta remains gated.
+
 ## 0.4.5
 
 - Connect own-account Learn/Resume buttons to a Home Assistant-hosted launcher

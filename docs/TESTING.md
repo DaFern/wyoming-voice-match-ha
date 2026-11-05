@@ -1,5 +1,25 @@
 # Validation and acceptance checklist
 
+## Combined integration distribution preparation (unreleased)
+
+The add-on baseline remains `0.4.5`. Unreleased documentation and administrator
+setup-link changes point to the single combined integration's
+[installation/beta policy](https://github.com/DaFern/ha-codex-multi-assist/blob/main/docs/INSTALLATION.md)
+and [unexecuted acceptance checklist](https://github.com/DaFern/ha-codex-multi-assist/blob/main/docs/BETA_ACCEPTANCE.md).
+Dependency-light `tests/test_distribution_docs.py` checks baseline version parity,
+safe static external-link attributes and retention of standalone instructions.
+The existing management/launcher/pairing fixtures still exercise unchanged JS.
+These are distribution preparations, not a new add-on version or combined beta.
+Historical stage results below do not establish current deployment state.
+
+Local phase 4 validation: **203 unit tests passed / 4 built-engine-only skips**
+(207 discovered). Synthetic Chromium mobile/desktop management checks passed,
+including the combined setup link's visible development warning, no horizontal
+overflow and no pairing/recording mutation while viewing it. The paired combined
+integration runner also passed all **53** encrypted bridge/controller tests.
+No real HAOS install, built-engine acceptance, Android combined handoff, release,
+deployment, restart, key change or voice-data deletion occurred.
+
 ## Authenticated-login reconnect prototype (development only)
 
 Local full-suite validation: **144 unit tests passed, 4 upstream-engine tests

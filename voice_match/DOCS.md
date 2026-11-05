@@ -1,5 +1,12 @@
 # Installation and operation
 
+The add-on baseline is **0.4.5**; check the installed build rather than inferring
+it from these source docs. For the planned single combined integration, see
+[Codex Multi Assist installation/beta policy](https://github.com/DaFern/ha-codex-multi-assist/blob/main/docs/INSTALLATION.md)
+and [acceptance/rollback gates](https://github.com/DaFern/ha-codex-multi-assist/blob/main/docs/BETA_ACCEPTANCE.md).
+It is development-only, not a released beta. The standalone instructions below
+remain available until replacement acceptance; do not run both learning clients.
+
 For the optional **0.3.0 personal response preferences** and paired Codex connector,
 see [Personalisation](../docs/PERSONALIZATION.md). Keep it disabled until both
 components are reviewed, tested and deployed. Existing filtering uses port 10350
@@ -41,19 +48,22 @@ other security-sensitive operations. Recorded/replayed voices can fool matching.
 
 ## Guided voice learning
 
-**Development prototype, not deployed:** enrolment now requires a separate,
+**Experimental learning:** the 0.4.5 baseline requires a separate,
 authorised learning transport. Ordinary Assist traffic on 10350/10352 cannot
 become training audio; existing recognition continues during collection and
 generation. Activating a validated replacement still briefly reloads the worker.
-The management page's Start control is disabled until a trusted speaker
-connector exists. There is no selectable learning pipeline or Echo driver yet.
+The management page does not capture training audio. A matching separately
+installed standalone companion provides dedicated learning entities and a native
+Android launcher; combined learning moves those into `codex_assist` in development.
+Create the dedicated pipeline manually; no Echo/satellite learning driver ships.
 See [the protocol, safeguards and limits](../docs/ISOLATED_ENROLLMENT.md).
 
-The installed **0.3.2** release still uses global training capture. Its learning
+**Historical warning:** **0.3.2** uses global training capture. Its learning
 mode can save another person's ordinary Voice Match request into the active
 profile. Hold off on re-enrolment; merely choosing a separate stock Assist
 pipeline does not establish the recording source. These development changes do
-not alter the installed release.
+not update an old installation automatically. The warning is not a statement
+that a current installation still runs 0.3.2.
 
 Guidance still uses 30 varied phrases, about five seconds each, at normal
 microphone distance. Only saved samples advance the phrase; rejected audio keeps

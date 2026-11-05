@@ -183,6 +183,12 @@ async def review(output):
                     await evaluate("$('administration').open = true; $('administration').scrollIntoView()")
                     assert not await evaluate("[...$('profiles').querySelectorAll('button')].some(b => /Learn my voice|Resume learning/.test(b.textContent))")
                     await screenshot("05-admin-mobile.png")
+                    guide = "https://github.com/DaFern/ha-codex-multi-assist/blob/main/docs/INSTALLATION.md"
+                    assert await evaluate(f"Boolean($('learning-bridge').querySelector('a[href=\"{guide}\"]'))")
+                    await evaluate("$('learning-bridge').scrollIntoView()")
+                    assert await evaluate("!$('learning-bridge').hidden && $('learning-bridge').textContent.includes('not a published beta')")
+                    await screenshot("08-combined-setup-guide-mobile.png")
+                    assert len(calls) == 1, "Viewing setup guidance must not pair or start recording"
                     await call("Emulation.setDeviceMetricsOverride", {
                         "width": 1280, "height": 900, "deviceScaleFactor": 1, "mobile": False,
                     }, session)

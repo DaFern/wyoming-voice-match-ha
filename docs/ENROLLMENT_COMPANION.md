@@ -1,16 +1,34 @@
-# HA enrolment coordinator and paired bridge — development only
+# Standalone enrolment companion — retained setup and protocol notes
+
+## Current distribution status (5 November 2026)
+
+The add-on baseline is **0.4.5**. Its matching standalone companion still has
+prototype manifest `0.0.0`; identify its exact source revision as well. Neither
+version string proves installation status. Standalone phone learning and Android
+launcher observations are summarised in the [README](../README.md).
+
+The replacement learning module is in the single
+[Codex Multi Assist custom integration](https://github.com/DaFern/ha-codex-multi-assist),
+with [custom HACS installation and beta policy](https://github.com/DaFern/ha-codex-multi-assist/blob/main/docs/INSTALLATION.md).
+It requires HA **2026.10+**, ordinary Whisper and the add-on, but no Codex account.
+It is **development only, not a published combined beta**. Do not run both learning
+implementations or remove this standalone path before separately approved cutover
+and real-phone acceptance. HACS cannot install two integrations from this repository;
+the add-on never installs companion code into Core. Existing standalone users may
+continue with the pairing instructions below; this document is not a reset request.
+
+## Earlier implementation-stage notes (superseded deployment status)
 
 For the later phone pause/cancel changes and their deployment requirements, see
 [Phone control safeguards](PHONE_CONTROL_FIXES.md). Historical stage descriptions
 below do not establish what is currently deployed.
 
-This stage adds a separate `custom_components/voice_match_enrollment` companion
-and an opt-in add-on bridge. **Neither is installed or active in this home.**
-The installed add-on remains 0.3.2 with the old global capture behaviour. Do not
-re-enrol through it assuming these development protections are already present.
+The original development stage added `custom_components/voice_match_enrollment`
+and an opt-in bridge, while a test installation still used 0.3.2 global capture.
+That is historical context, not current deployment guidance. A system still on
+0.3.2 must not assume a dedicated pipeline provides the later recording protections.
 
-The new companion manifest uses the placeholder prototype version `0.0.0`; the
-existing add-on version is unchanged. The companion targets **HA 2026.10**. It is
+The standalone companion uses prototype version `0.0.0` and targets **HA 2026.10**. It is
 not bundled into the add-on image and does not alter Codex. It now provides an
 off-by-default experimental phone STT/learning-agent pair, but creates no Assist
 pipeline, voice intent, automation or native LLM tool automatically.
@@ -53,7 +71,7 @@ not installed by updating the add-on.
 
 The native authenticated connection, account, exact pipeline task and chat bind a
 bounded RAM clip. Only the learning agent can submit it after authorisation and a
-spoken biometric notice followed by a separate “start learning”. Say “cancel learning”
+spoken biometric notice followed by a separate “start learning”. Say “cancel voice learning”
 to leave. The account needs a uniquely
 assigned existing profile; the bridge's `own_profile` lookup and `own_only` session
 restriction apply even to administrators. General management permissions are not
