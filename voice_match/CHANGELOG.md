@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.4.3
+
+- Shorten the first phone recording notice and require a separate “Start learning”.
+  Speak the sample instructions once, prefer “Cancel voice learning” in guidance,
+  and make the full recording/privacy explanation available via “Privacy details”.
+- Offer verified paused-session progress with a separate “Continue learning”
+  confirmation. Fresh own-profile authorisation, latest-generation and locked
+  count/target checks precede resume; entry and the first request are not consent.
+  Changed login/chat, interrupted capture or expiry requires the short fresh notice.
+- Keep pause/discard separation, automatic sample listening, 30 varied phrases,
+  control-audio exclusions, validated replacement and unchanged match thresholds.
+  Cancellation at the verified resume prompt does not start recording. Uncertain
+  resume outcomes block recording and blind retries.
+- Requires matching companion phone_flow.py and phone_diagnostics.py updates and
+  a Core restart. Update the add-on and companion together before phone testing.
+- Validation: 188 unit tests passed, 4 skipped; 63 native HA tests passed. The
+  isolated launch-contract Node test passed, but the prototype is not wired into
+  either entry path. Real Android/Whisper/TTS acceptance remains pending; see
+  docs/PHONE_WORDING_RESUME.md for limitations and the acceptance checklist.
+
 ## 0.4.2
 
 - Separate phone controls: “pause learning” keeps unfinished samples; “cancel
