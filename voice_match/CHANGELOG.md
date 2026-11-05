@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.4.4
+
+- Replace the blocked management form with an own-account “Your voice” screen,
+  safe profile creation and clearly named learn-again/resume actions. Creating
+  a profile saves metadata only; recording still needs separate spoken consent.
+- Show useful phone-learning instructions rather than claiming an automatic
+  Assist launch. Open Assist and choose the learning assistant manually; missing
+  setup has an actionable explanation. Automatic-launch prototypes remain unwired.
+- Distinguish “Voice ready” from saved-recording storage. Keep privacy details
+  expandable, destructive controls confirmation-gated and administrator account
+  assignment/pairing separate from everyday controls.
+- Guard creation with authenticated account/CSRF checks, exact request fields,
+  duplicate-profile prevention and runtime locking. Do not retry uncertain creation
+  requests; recheck status. Account/access changes clear stale guidance and details.
+- Local validation: 198 unit tests passed, 4 skipped; 63 native HA tests passed.
+  Synthetic Chromium phone/desktop checks and visual review passed. Actual
+  Companion-app/Ingress UI acceptance remains pending; see docs/MANAGEMENT_UI.md.
+- Add-on-only update from 0.4.3: no companion-code change or Core restart required.
+  Existing voiceprints, recordings, thresholds, pairing and assistant defaults are
+  preserved. Updating restarts the add-on; pause learning before installation.
+
 ## 0.4.3
 
 - Shorten the first phone recording notice and require a separate “Start learning”.
