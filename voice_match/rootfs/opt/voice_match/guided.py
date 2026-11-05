@@ -131,7 +131,9 @@ class Runtime:
                 recording_bytes=self.store.recording_bytes(voice_id),
             ))
         result = {"profiles": profiles, "engine": self.worker.status, "paused": False,
-                  "learning": self.active is not None}
+                  "learning": self.active is not None,
+                  # Key presence is not proof of a working companion/client handoff.
+                  "learning_setup": {"paired": bool(self.learning_bridge.view()["paired"])}}
         if actor["admin"]:
             result["connector"] = self.connector.view()
             result["learning_bridge"] = self.learning_bridge.view()
@@ -329,6 +331,16 @@ class Runtime:
             if bridge_boot is not None and bridge_boot != self.learning_bridge.boot:
                 raise Denied("Learning bridge pairing changed")
             action = data.get("action")
+            if action == "create_own_profile":
+                if set(data) != {"action", "name", "confirm"} or data.get("confirm") is not True:
+                    raise ValueError("Confirm creating your voice profile")
+                if self.active:
+                    raise ValueError("Wait until voice learning is paused or finished")
+                actor_from_users(actor["id"], users)
+                # No owner/id override, capability, consent or recording session.
+                # The existing store guard rejects duplicate own-account profiles.
+                voice_id = self.store.create(data.get("name"), actor["id"])
+                return {"id": voice_id}
             if action in {"learning_bridge_rotate", "learning_bridge_disable"}:
                 if self.active:
                     raise ValueError("Finish or pause learning before changing bridge pairing")

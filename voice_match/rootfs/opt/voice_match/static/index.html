@@ -9,9 +9,22 @@
 </head>
 <body>
   <main>
-    <header><h1>Voice Match</h1><p>Manage your voice</p></header>
+    <header><h1>Voice Match</h1><p>Your voice, your assistant preferences</p></header>
     <p id="message" role="status" aria-live="polite">Connecting to Home Assistant…</p>
-    <section><h2>Saved voices</h2><div id="profiles"></div></section>
+    <section id="your-voice"><h2 id="your-voice-title" tabindex="-1">Your voice</h2><div id="own-profile"></div></section>
+    <section id="learning-help" hidden aria-labelledby="learning-help-title">
+      <h2 id="learning-help-title" tabindex="-1">Continue in Assist</h2>
+      <p id="learning-help-status" role="status"></p>
+      <ol>
+        <li>Open Assist on this phone and choose <strong>Voice Learning</strong>. If it has a different name, choose the learning assistant your administrator set up.</li>
+        <li id="learning-entry-step">Say “Learn my voice”. Listen to the recording notice, then say “Start learning” if you agree.</li>
+        <li>Read the short sentences at your normal speaking distance. Assist listens again automatically after each prompt.</li>
+      </ol>
+      <p>“Pause learning” keeps unfinished recordings. “Cancel voice learning” discards that unfinished session. Your current voiceprint stays until its replacement is checked and ready.</p>
+      <p>Can't find the learning assistant? Ask a Home Assistant administrator to finish setup.</p>
+      <button id="show-admin-setup" type="button" hidden>Show administrator setup</button>
+      <button id="close-learning-help" type="button">Close steps</button>
+    </section>
     <section id="preferences" hidden>
       <h2 id="preferences-title">Personal instructions</h2>
       <form id="preferences-form">
@@ -28,30 +41,33 @@
       <div id="enrollment-prompt" role="status" aria-live="polite" aria-atomic="true" hidden>
         <p id="phrase-number"></p><p id="enrollment-phrase"></p>
       </div>
-      <p>Record only through the authorised learning connector, using its microphone at your normal speaking distance. Read each phrase naturally for about five seconds. Ordinary Assist microphones do not supply training samples.</p>
-      <p>Wait for the sample to save before recording again. If rejected, try the same phrase again. Exact words are not checked; existing audio format and duration checks still apply. Only the consenting speaker should use the learning microphone.</p>
+      <p>Keep using the learning assistant on your phone. Read each sentence naturally and wait for the next prompt. If a sample isn't saved, try the same sentence again.</p>
       <p id="job-error" role="alert"></p>
       <button id="cancel" type="button">Pause learning</button>
-      <p>Pausing keeps partial samples for you to resume with fresh consent or delete later. Normal voice matching stays separate throughout learning.</p>
+      <p>Pausing keeps unfinished recordings. Ordinary assistant conversations never train your voice.</p>
     </section>
     <section id="wizard">
-      <h2 id="wizard-title">Add your voice</h2>
+      <h2 id="wizard-title" tabindex="-1">Add my voice</h2>
       <form id="enrol">
-        <label for="name">Name</label><input id="name" maxlength="80" required autocomplete="off">
-        <div id="owner-field" hidden><label for="owner">Home Assistant account</label><select id="owner"></select></div>
-        <label class="check"><input id="consent" type="checkbox" required>
-          The speaker consents to local voice recording and a saved biometric voiceprint. After successful setup, saved samples for this person will be deleted. Old backups may still contain them.</label>
-        <p>Isolated learning is a development prototype. Starting or resuming requires a trusted speaker connector, which is not implemented yet. Normal Assist traffic cannot train a voice. Do not switch an ordinary assistant to a learning pipeline as a workaround.</p>
-        <p>We use about 30 short samples. The saved voiceprint stays on this system. A voice match is not proof of identity or permission to perform sensitive actions.</p>
-        <button id="start-learning" type="submit" disabled>Learning connector required</button>
-        <button id="back-to-add" type="button" hidden>Back</button>
+        <label for="name">Your display name</label><input id="name" maxlength="80" required autocomplete="name" aria-describedby="profile-explanation">
+        <p id="profile-explanation">Create a profile linked only to your signed-in account. This does not record your voice. You'll give separate recording consent in Assist.</p>
+        <button id="start-learning" type="submit">Create my voice profile</button>
+        <button id="back-to-add" type="button">Back</button>
       </form>
     </section>
     <section><h2>Privacy</h2>
+      <p>Your voiceprint helps personalise responses; it isn't proof of identity. Recording starts only after you agree in the learning assistant.</p>
+      <details><summary>Recording, privacy and deletion details</summary>
+      <p>Learning uses about 30 short recordings stored on this Home Assistant system. Your selected speech-to-text service also processes your speech; its privacy and retention rules apply. Only you should use your learning microphone.</p>
+      <p>Saved recordings are removed after a validated replacement voiceprint is installed. Until then, your existing voiceprint is preserved. Say “Privacy details” in the learning assistant to hear the explanation.</p>
       <p>Your signed-in Home Assistant account controls which voices you can manage. Administrators can manage all profiles. Other users can only manage their own.</p>
       <p>Deleting samples keeps your voiceprint. Deleting a voice removes both. Neither action removes old backups or guarantees secure erasure from disk.</p>
       <p>New microphones or a changed voice may need fresh samples. Keep the original Whisper assistant available as a fallback.</p>
+      </details>
     </section>
+    <details id="administration" hidden>
+      <summary>Administrator settings</summary>
+      <section><h2>Manage saved voices</h2><p>Manage accounts and saved data here. Each person must learn their own voice from their own signed-in phone.</p><div id="profiles"></div></section>
     <section id="connector" hidden>
       <h2>Codex personalisation pairing</h2>
       <p>Administrator setup. The existing STT endpoint stays unchanged. Pair Codex Multi-Assist first, then connect a separate Wyoming integration to this add-on on port 10352 and use it only with the paired agent. An unpaired agent cannot interpret the encrypted request context.</p>
@@ -87,6 +103,7 @@
       <p>In a verified paused conversation, follow the welcome-back prompt and say “continue learning” to confirm resuming. A new conversation, changed login or expired/interrupted session requires the short notice and “start learning” again. Say “privacy details” in Voice Learning to hear how recordings and your voiceprint are handled, including processing by your selected speech service, cleanup and backup limitations.</p>
     </section>
     <button id="retry" type="button" hidden>Retry voice engine</button>
+    </details>
   </main>
 </body>
 </html>

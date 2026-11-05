@@ -7,6 +7,7 @@ main { max-width: 760px; padding: 20px; margin: auto; }
 header p { margin-top: 0; }
 section { border: 1px solid GrayText; border-radius: 12px; padding: 18px; margin: 18px 0; }
 h1 { margin-bottom: 8px; } h2 { font-size: 1.25rem; margin-top: 0; }
+h2[tabindex] { scroll-margin-top: 16px; }
 p { line-height: 1.5; }
 label { display: block; margin: 14px 0 6px; }
 input:not([type="checkbox"]), select, textarea { box-sizing: border-box; width: 100%; padding: 10px; font: inherit; }
@@ -14,6 +15,16 @@ input[type="checkbox"] { width: 20px; height: 20px; flex-shrink: 0; }
 .check { display: flex; align-items: flex-start; gap: 10px; line-height: 1.45; }
 button { font: inherit; padding: 11px 15px; margin: 8px 8px 0 0; cursor: pointer; min-height: 44px; }
 button:disabled { cursor: wait; opacity: .6; }
+button { max-width: 100%; overflow-wrap: anywhere; }
+button.primary { background: #007da6; color: white; border: 1px solid #007da6; border-radius: 8px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.actions button { margin: 0; }
+.danger { border-inline-start: 3px solid #b43b3b; padding-inline-start: 12px; margin-top: 18px; }
+details { margin: 16px 0; }
+summary { cursor: pointer; min-height: 44px; line-height: 1.5; overflow-wrap: anywhere; }
+li { line-height: 1.6; margin-bottom: 12px; }
+strong, p { overflow-wrap: anywhere; }
+@media (max-width: 480px) { main { padding: 12px; } section { padding: 14px; } .actions button { flex: 1 1 100%; } }
 .voice { border-bottom: 1px solid GrayText; padding: 12px 0; }
 .voice:last-child { border-bottom: 0; }
 .voice strong { display: block; } progress { width: 100%; height: 24px; }

@@ -5,6 +5,8 @@ let busy = false;
 let preferencesId = null;
 let learningKeyTimer = null;
 let learningKeyEpoch = 0;
+const uncertainCreations = new Set();
+let creating = false;
 const $ = (id) => document.getElementById(id);
 const message = (text) => { $("message").textContent = text; };
 
@@ -80,7 +82,7 @@ async function changeLearningPairing(action) {
     await refresh(false, controller.signal); // Recheck account/role within the same deadline.
     clearTimeout(deadline);
     busy = false;
-    document.querySelectorAll("button").forEach((element) => { element.disabled = element.id === "start-learning"; });
+    restoreControls();
     const sameAdmin = state?.user.admin && state.user.id === userId;
     if (saved && newKey && sameAdmin && state.learning_bridge?.paired
         && !document.hidden && epoch === learningKeyEpoch) {
@@ -115,22 +117,165 @@ async function send(data) {
     editing = null;
     $("enrol").reset();
     message("Change saved.");
-  } catch (error) {
-    message(error.message || "Connection failed. Refresh and try again.");
+  } catch {
+    message("Change could not be verified. Check the current status before making another change; no request was retried.");
   } finally {
     busy = false;
-    document.querySelectorAll("button").forEach((element) => { element.disabled = element.id === "start-learning"; });
+    restoreControls();
     await refresh(false);
     renderLearningPairing();
   }
 }
 
 function edit(profile) {
-  editing = profile;
-  $("enrol").reset();
-  $("name").value = profile.name;
+  if (busy || !state || state.learning || !profile || ownProfile()?.id !== profile.id) return;
+  editing = { id: profile.id, userId: state.user.id };
+  creating = false;
   renderWizard();
-  $("wizard").scrollIntoView({ behavior: "smooth" });
+  $("learning-help-title").focus();
+  $("learning-help-title").scrollIntoView({ block: "start" });
+}
+
+function ownProfiles() {
+  return state?.profiles.filter((profile) => profile.owner === state.user.id) || [];
+}
+
+function ownProfile() {
+  const profiles = ownProfiles();
+  return profiles.length === 1 ? profiles[0] : null;
+}
+
+function restoreControls() {
+  document.querySelectorAll("button").forEach((element) => { element.disabled = busy || !state; });
+  if (state) {
+    renderOwnProfile();
+    renderWizard();
+  }
+  renderLearningPairing();
+}
+
+function renderOwnProfile() {
+  const container = $("own-profile");
+  container.replaceChildren();
+  const profiles = ownProfiles();
+  const profile = ownProfile();
+  if (profiles.length > 1) {
+    container.append(node("p", "More than one voice is linked to your account. Ask an administrator to check the assignment before learning."));
+    return;
+  }
+  if (!profile) {
+    container.append(node("p", "Add a profile for your signed-in account, then learn your voice in Assist."));
+    if (uncertainCreations.has(state.user.id)) {
+      container.append(node("p", "Profile creation could not be verified. Check again before making any further changes; no request has been retried."));
+      button(container, "Check profile status", () => refresh(false));
+    } else {
+      const add = button(container, "Add my voice", () => {
+        if (busy || !state || ownProfiles().length) return;
+        creating = true;
+        renderWizard();
+        $("wizard-title").focus();
+        $("wizard-title").scrollIntoView({ block: "start" });
+      });
+      add.className = "primary";
+      add.disabled = busy || state.learning;
+    }
+    return;
+  }
+  container.append(node("strong", profile.name));
+  container.append(node("p", profile.enrolled ? "Voice ready" : "Voice not yet learned"));
+  if (profile.pending) container.append(node("p", "Unfinished learning saved. Your existing voiceprint is kept until a replacement is ready."));
+  container.append(node("p", profile.recording_bytes > 0
+    ? `Saved recordings: ${(profile.recording_bytes / 1048576).toFixed(1)} MB`
+    : "Saved recordings: none"));
+  const actions = node("div");
+  actions.className = "actions";
+  const learn = button(actions, profile.pending ? "Resume learning" : profile.enrolled ? "Learn my voice again" : "Learn my voice", () => edit(profile));
+  learn.className = "primary";
+  learn.disabled = busy || state.learning;
+  button(actions, "Personal instructions", () => showPreferences(profile));
+  container.append(actions);
+  renderRemoval(container, profile);
+}
+
+function showPreferences(profile) {
+  if (busy || !state || !state.profiles.some((item) => item.id === profile.id)) return;
+  preferencesId = profile.id;
+  $("preferences-title").textContent = `${profile.name}'s personal instructions`;
+  $("personal-instructions").value = profile.personal_instructions || "";
+  $("preferences").hidden = false;
+  $("personal-instructions").focus();
+}
+
+function renderRemoval(parent, profile) {
+  const details = node("details");
+  details.className = "danger";
+  details.append(node("summary", "Delete saved data"));
+  if (profile.recording_bytes > 0) {
+    button(details, "Delete saved recordings", () => {
+      if (confirm(`Delete all saved recordings for ${profile.name}? The voiceprint stays. Old backups are unaffected.`)) {
+        send({ action: "cleanup", id: profile.id, confirm: true });
+      }
+    });
+  }
+  button(details, "Delete voice", () => {
+    if (confirm(`Delete ${profile.name}'s voiceprint and saved recordings? They will need to learn their voice again. Old backups are unaffected.`)) {
+      send({ action: "delete", id: profile.id, confirm: true });
+    }
+  });
+  parent.append(details);
+}
+
+async function createOwnProfile() {
+  if (busy || !state || ownProfiles().length || state.learning || uncertainCreations.has(state.user.id)) return;
+  const name = $("name").value.trim();
+  if (!name || name.length > 80) return message("Enter a display name between 1 and 80 characters.");
+  const userId = state.user.id;
+  const csrf = state.csrf;
+  const controller = new AbortController();
+  const deadline = setTimeout(() => controller.abort(), 20000);
+  // Mark before dispatch. Unknown outcomes are never automatically retried.
+  uncertainCreations.add(userId);
+  busy = true;
+  restoreControls();
+  let saved = false;
+  let createdId = null;
+  let rejected = false;
+  try {
+    const response = await fetch("api/action", {
+      method: "POST", headers: { "Content-Type": "application/json", "X-Voice-CSRF": csrf },
+      body: JSON.stringify({ action: "create_own_profile", name, confirm: true }),
+      cache: "no-store", signal: controller.signal,
+    });
+    const value = await response.json();
+    saved = response.ok && value.ok === true && typeof value.id === "string" && Boolean(value.id);
+    if (saved) createdId = value.id;
+    rejected = response.status === 400 || response.status === 403;
+  } catch {
+    // A lost response is not proof that creation failed.
+  } finally {
+    await refresh(false, controller.signal);
+    clearTimeout(deadline);
+    busy = false;
+    if (saved || rejected) uncertainCreations.delete(userId);
+    if (state?.user.id === userId) {
+      const profile = ownProfile();
+      if (profile) {
+        creating = false;
+        renderOwnProfile();
+        if (saved && createdId === profile.id) {
+          message("Your voice profile is ready. No recording has started. Follow the steps in Assist when you're ready.");
+          edit(profile);
+        } else {
+          message("A voice profile is now linked to your account. No recording has started. Check its details before continuing.");
+        }
+      } else {
+        renderOwnProfile();
+        message(rejected ? "The profile was not created. Check the name and account access, then try again when learning is idle."
+          : "Profile creation could not be verified. Check profile status; do not repeat the request blindly.");
+      }
+    }
+    restoreControls();
+  }
 }
 
 function renderPrompt(job) {
@@ -144,14 +289,19 @@ function renderPrompt(job) {
 }
 
 function renderWizard() {
-  const own = state.profiles.find((profile) => profile.owner === state.user.id);
-  $("wizard").hidden = state.learning || (!state.user.admin && own && !editing);
-  $("wizard-title").textContent = editing ? `Learn ${editing.name}'s voice` : "Add a voice";
-  $("name").disabled = Boolean(editing);
-  $("back-to-add").hidden = !editing;
-  $("owner-field").hidden = !state.user.admin || Boolean(editing);
+  const own = ownProfile();
+  if (editing && (editing.userId !== state.user.id || editing.id !== own?.id)) editing = null;
+  $("wizard").hidden = !creating || state.learning || ownProfiles().length > 0;
+  $("start-learning").disabled = busy || state.learning || ownProfiles().length > 0 || uncertainCreations.has(state.user.id);
+  $("learning-help").hidden = !editing;
+  $("show-admin-setup").hidden = !state.user.admin;
+  $("learning-help-status").textContent = !state.learning_setup?.paired
+    ? "Voice learning isn't set up yet. Ask a Home Assistant administrator to finish setup before recording."
+    : "This page doesn't open Assist or start recording. Check that your learning assistant is available, then follow these steps.";
+  $("learning-entry-step").textContent = own?.pending
+    ? 'If your paused Assist conversation is still available, ask to continue and follow its separate “Continue learning” confirmation. In a new or expired conversation, say “Learn my voice” and follow the fresh “Start learning” notice.'
+    : 'Say “Learn my voice”. Listen to the recording notice, then say “Start learning” if you agree.';
   $("progress").hidden = !state.job;
-  $("start-learning").disabled = true; // Trusted speaker connector is not implemented yet.
   renderPrompt(state.job);
   if (state.job) {
     const job = state.job;
@@ -169,33 +319,16 @@ function renderWizard() {
 
 function renderProfiles() {
   $("profiles").replaceChildren();
+  if (!state.user.admin) return;
   if (!state.profiles.length) $("profiles").append(node("p", "No voice linked to your account yet."));
   for (const profile of state.profiles) {
     const card = node("div");
     card.className = "voice";
     card.append(node("strong", profile.name));
-    const label = profile.enrolled ? "Ready" : "Not yet learned";
-    card.append(node("p", `${label}${profile.owner ? "" : " · Unassigned legacy voice"} · Saved samples: ${(profile.recording_bytes / 1048576).toFixed(1)} MB`));
-    button(card, "Personal instructions", () => {
-      preferencesId = profile.id;
-      $("preferences-title").textContent = `${profile.name}'s personal instructions`;
-      $("personal-instructions").value = profile.personal_instructions || "";
-      $("preferences").hidden = false;
-      $("preferences").scrollIntoView({ behavior: "smooth" });
-    });
-    button(card, profile.pending ? "Resume learning" : "Re-enrol", () => edit(profile));
-    if (profile.recording_bytes > 0) {
-      button(card, "Delete saved samples", () => {
-        if (confirm(`Delete all saved recordings for ${profile.name}? The voiceprint stays. Old backups are unaffected.`)) {
-          send({ action: "cleanup", id: profile.id, confirm: true });
-        }
-      });
-    }
-    button(card, "Delete voice", () => {
-      if (confirm(`Delete ${profile.name}'s voiceprint and saved recordings? They will need to enrol again. Old backups are unaffected.`)) {
-        send({ action: "delete", id: profile.id, confirm: true });
-      }
-    });
+    const label = profile.enrolled ? "Voice ready" : "Voice not yet learned";
+    card.append(node("p", `${label}${profile.owner ? "" : " · Unassigned legacy voice"}`));
+    button(card, "Personal instructions", () => showPreferences(profile));
+    renderRemoval(card, profile);
     if (state.user.admin) {
       const select = node("select");
       select.setAttribute("aria-label", `Account for ${profile.name}`);
@@ -227,17 +360,7 @@ async function refresh(showStatus = true, signal) {
         || (previous && previous.user.id !== state.user.id)) clearLearningKey();
     renderLearningPairing();
     if (previous && (previous.user.id !== state.user.id || (previous.user.admin && !state.user.admin))) editing = null;
-    // Rebuild account selection only when account/role data changes, not on
-    // every progress update while someone is filling out the form.
-    if (JSON.stringify(previous?.accounts) !== JSON.stringify(state.accounts)) {
-      $("owner").replaceChildren();
-      for (const user of state.accounts || []) {
-        const option = node("option", user.name);
-        option.value = user.id;
-        option.selected = user.id === state.user.id;
-        $("owner").append(option);
-      }
-    }
+    $("administration").hidden = !state.user.admin;
     if (!previous) $("name").value = state.user.name;
     $("connector").hidden = !state.user.admin;
     if (!state.user.admin) $("pairing-key").value = "";
@@ -252,29 +375,48 @@ async function refresh(showStatus = true, signal) {
       preferencesId = null;
       $("pairing-key").value = "";
       if (previous.user.id !== state.user.id) {
+        creating = false;
+        editing = null;
         $("enrol").reset();
         $("name").value = state.user.name;
       }
     }
+    if (preferencesId && !state.profiles.some((profile) => profile.id === preferencesId)) {
+      $("preferences").hidden = true;
+      $("personal-instructions").value = "";
+      preferencesId = null;
+    }
     // Avoid repeatedly replacing focusable profile controls during polling.
     if (!previous || JSON.stringify(previous.profiles) !== JSON.stringify(state.profiles)
-        || previous.user.admin !== state.user.admin) renderProfiles();
+        || previous.user.id !== state.user.id || previous.user.admin !== state.user.admin
+        || JSON.stringify(previous.accounts) !== JSON.stringify(state.accounts)) renderProfiles();
+    if (!previous || JSON.stringify(previous.profiles) !== JSON.stringify(state.profiles)
+        || previous.user.id !== state.user.id || previous.learning !== state.learning) renderOwnProfile();
     renderWizard();
     if (previous?.job && !state.job && !state.learning) {
       editing = null;
       renderWizard();
-      message("Learning has ended. Check that the voice is Ready; saved sample size shows whether cleanup finished.");
+      message("Learning has ended. Check your voice status: unfinished recordings may be kept, or a validated voice may be ready.");
     } else if (showStatus) {
-      message(state.learning ? "An isolated learning session is active. Ordinary Assist requests are not training samples."
-        : state.engine === "ready" ? "Voice matching is ready."
-          : state.engine === "loading" ? "Loading the voice engine… This may take a few minutes."
-            : state.engine === "failed" ? "Voice engine unavailable. Ask an administrator to retry."
-              : "Add a voice, or link an existing voice, to get started.");
+      const own = ownProfile();
+      message(state.learning ? "Voice learning is in progress. Ordinary assistant conversations don't add samples."
+        : state.engine === "loading" ? "Voice matching is starting. This may take a few minutes."
+          : state.engine === "failed" ? "Voice matching is unavailable. Ask an administrator to check it."
+            : own?.pending ? "Your unfinished learning is saved. Resume when you're ready."
+              : own?.enrolled ? "Your voice is ready."
+                : own ? "Your profile is ready. Learn your voice in Assist."
+                  : "Add your voice to personalise your assistant.");
     }
   } catch (error) {
     // Clear privileged controls when identity/role checks fail; never keep an
     // old administrator screen usable after a failed refresh.
     $("profiles").replaceChildren();
+    $("own-profile").replaceChildren();
+    $("administration").hidden = true;
+    $("administration").open = false;
+    $("learning-help").hidden = true;
+    creating = false;
+    $("name").value = "";
     $("wizard").hidden = true;
     $("progress").hidden = true;
     renderPrompt(null);
@@ -295,11 +437,17 @@ async function refresh(showStatus = true, signal) {
 
 $("enrol").addEventListener("submit", (event) => {
   event.preventDefault();
-  message("Learning requires a trusted speaker connector. Ordinary Assist microphones cannot supply training samples.");
+  return createOwnProfile();
 });
 $("cancel").addEventListener("click", () => send({ action: "cancel" }));
 $("retry").addEventListener("click", () => send({ action: "retry_engine" }));
-$("back-to-add").addEventListener("click", () => { editing = null; renderWizard(); });
+$("back-to-add").addEventListener("click", () => { creating = false; renderWizard(); $("your-voice-title").focus(); });
+$("close-learning-help").addEventListener("click", () => { editing = null; renderWizard(); $("your-voice-title").focus(); });
+$("show-admin-setup").addEventListener("click", () => {
+  if (!state?.user.admin || busy) return;
+  $("administration").open = true;
+  $("learning-bridge").scrollIntoView({ block: "start" });
+});
 $("preferences-form").addEventListener("submit", (event) => {
   event.preventDefault();
   send({ action: "preferences", id: preferencesId, instructions: $("personal-instructions").value, confirm: true });
