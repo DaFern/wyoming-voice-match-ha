@@ -1,6 +1,19 @@
 # Changelog
 
-## Unreleased — combined integration distribution preparation
+## 0.4.6
+
+- Include a recognised, assigned voice profile's display name in the encrypted
+  personalisation packet, even when personal instructions are empty. Requires the
+  matching Codex update for name-aware replies; uncertain matches remain unnamed.
+- Keep names out of request diagnostics. Preserve pairing, voiceprints, thresholds,
+  normal STT, recording consent and Home Assistant caller permissions.
+- The matching Codex update offers a separate, default-off Clean voice messages
+  source. Updating this add-on alone does not remove headers from existing Assist
+  pipelines or enable that source. No re-enrolment or key rotation is required.
+- Include the combined-development setup-guide link, retaining standalone setup.
+  This is not a published combined-integration beta or automatic learning cutover.
+
+## Earlier development notes — combined integration distribution preparation
 
 - Link administrator learning setup to the combined development integration's
   custom-HACS installation/beta policy, while retaining standalone setup.

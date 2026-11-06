@@ -63,6 +63,8 @@ class PersonalizationTests(unittest.TestCase):
         self.assertEqual(command, "hello")
         self.assertEqual(payload["instructions"], "Keep replies short")
         self.assertEqual(payload["voice"], self.voice)
+        self.assertEqual(payload["speaker_name"], "Alice")
+        self.assertNotIn("Alice", text)
         with self.assertRaises(PacketError):
             decode(key, text[:-5] + "other")
 
@@ -75,6 +77,23 @@ class PersonalizationTests(unittest.TestCase):
             packet = decode(key, self.connector.wrap("hello", match, self.store.profiles))[1]
             self.assertIsNone(packet["voice"])
             self.assertEqual(packet["instructions"], "")
+            self.assertNotIn("speaker_name", packet)
+
+    def test_recognised_name_is_sent_even_without_saved_instructions(self):
+        from speaker_packet import decode
+        key = self.pair()
+        wire = self.connector.wrap("hello", {
+            "speaker": self.voice, "similarity": .8, "margin": .3,
+        }, self.store.profiles)
+        packet = decode(key, wire)[1]
+        self.assertEqual(packet["speaker_name"], "Alice")
+        self.assertEqual(packet["instructions"], "")
+        self.store.profiles[self.voice]["owner"] = None
+        neutral = decode(key, self.connector.wrap("hello", {
+            "speaker": self.voice, "similarity": .8, "margin": .3,
+        }, self.store.profiles))[1]
+        self.assertIsNone(neutral["voice"])
+        self.assertNotIn("speaker_name", neutral)
 
     def test_assignment_changes_clear_previous_persons_preferences(self):
         set_preferences(self.store, ALICE, self.voice, "Personal choice")

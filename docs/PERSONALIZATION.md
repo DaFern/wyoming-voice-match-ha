@@ -24,6 +24,23 @@ grant permissions or make a speaker an authenticated HA user. Disabling/deleting
 a HA account does not itself erase its acoustic profile or preferences; an
 administrator must remove the profile when appropriate.
 
+### Recognised names (development, not deployed)
+
+The sender now also includes the matched, assigned profile's display name as an
+optional encrypted `speaker_name` field. The matching Codex update gives the agent
+explicit per-request recognition context even if personal instructions are empty.
+It uses the profile label, not a name inferred from presence or the current phone
+login. The label is shared with the selected model provider, quoted as name data,
+and must not be treated as authentication or permission. Neutral/unassigned
+matches carry no name, and diagnostic logs do not include it.
+
+This additive version-1 field needs both reviewed updates for name-aware replies.
+Older packets without names remain valid; older receivers ignore the extra field.
+No key rotation or re-enrolment is needed just to add it. Names are bounded to 80
+printable characters independently of the existing 2000-character preference
+limit. This checkout does not deploy either update, and name context does not
+remove the encrypted header from an existing stock-Wyoming Assist chat bubble.
+
 ## Setup after both updates have been approved and tested
 
 1. Back up both components. Install the reviewed integration and restart Core with
