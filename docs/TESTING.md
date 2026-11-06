@@ -1,5 +1,28 @@
 # Validation and acceptance checklist
 
+## Independent personalisation assessment (0.4.7)
+
+`tests/test_identity_assessment.py` adds 25 synthetic contracts for an early 0.35
+filter result followed by a stronger identity window; unchanged filter thresholds
+and model reuse; first-N/sliding windows; same-window margins; conflicting/tied
+speakers; partial/malformed/nonfinite scores; budget/capacity/error neutrality;
+unchanged connector similarity/margin checks; request-local worker mode binding;
+old-worker fail-neutral behaviour; exact forwarded PCM; rejected/normal speech;
+no fallback to the filter score; reset and overlapping-request isolation.
+
+Local full-suite result: **229 passed / 4 built-engine skips** (233 discovered),
+using cached pinned Wyoming 1.8.0 and the isolated Python environment. Targeted
+fatal-error Ruff checks and diff checks passed. Inference scores and engine
+boundaries in these new tests are synthetic, not real recordings/model acceptance.
+The four existing real-upstream handler contracts still require a built image.
+
+The new assessment has a cooperative five-second budget checked around each
+inference call, not a hard pre-emption of Torch. Extra CPU latency, profile quality,
+false accepts/rejects and real-phone behaviour remain unmeasured. The manifest and
+container label were aligned to 0.4.7 for the approved repository update. These
+checks do not build a container or establish live installation. No deployment,
+restart, threshold/pairing change, live recording or re-enrolment was performed.
+
 ## Combined integration distribution preparation (unreleased)
 
 The add-on baseline remains `0.4.5`. Unreleased documentation and administrator

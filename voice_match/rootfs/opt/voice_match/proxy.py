@@ -10,6 +10,8 @@ import logging
 from wyoming.asr import Transcript
 from wyoming.audio import AudioChunk, AudioStart, AudioStop
 
+from identity_assessment import IDENTITY_MODE, assess_identity
+
 _LOGGER = logging.getLogger("proxy")
 MAX_BYTES = 16000 * 2 * 60
 
@@ -43,7 +45,12 @@ def bounded_handler(base):
             if Transcript.is_type(event.type) and getattr(self, "_speaker_tap", None):
                 # Only the private loopback worker emits this extension. The
                 # ordinary external STT endpoint never forwards it to HA.
-                metadata = match_metadata(self._speaker_tap.result)
+                if getattr(self, "_assess_identity", False):
+                    # The gateway must not fall back to old-worker filter scores.
+                    event.data["voice_match_identity"] = IDENTITY_MODE
+                    metadata = self._identity_metadata
+                else:
+                    metadata = match_metadata(self._speaker_tap.result)
                 if metadata and Transcript.from_event(event).text:
                     event.data["voice_match"] = metadata
             await super().write_event(event)
@@ -56,6 +63,8 @@ def bounded_handler(base):
 
         async def handle_event(self, event):
             if AudioStart.is_type(event.type):
+                self._assess_identity = event.data.get("voice_match_identity") == IDENTITY_MODE
+                self._identity_metadata = None
                 verifier = getattr(self, "verifier", None)
                 if verifier is not None:
                     if isinstance(verifier, VerificationTap):
@@ -85,6 +94,15 @@ def bounded_handler(base):
             return await super().handle_event(event)
 
         async def _forward_to_upstream(self, audio_bytes):
+            tap = getattr(self, "_speaker_tap", None)
+            if getattr(self, "_assess_identity", False) and tap is not None and tap.result is not None:
+                # Filter acceptance/extraction is already decided. Score the exact
+                # forwarded bytes off-loop; never change that decision or audio.
+                if tap.result.is_match:
+                    self._identity_metadata = await asyncio.to_thread(
+                        assess_identity, tap.base, audio_bytes, 16000,
+                        tap.result.matched_speaker,
+                    )
             try:
                 return await asyncio.wait_for(super()._forward_to_upstream(audio_bytes), timeout=30)
             except asyncio.TimeoutError:

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.7
+
+- Assess recognised identity separately from the speech filter's early acceptance
+  result, using exactly the filtered PCM sent to Whisper. Keep the configured
+  speech threshold, identity similarity/margin thresholds and forwarded audio unchanged.
+- Score the bounded candidate/window set without stopping at the first speech
+  match. Incomplete, failed, tied or conflicting-speaker assessments stay neutral;
+  normal STT does not request this extra work.
+- Require a request-local internal worker mode marker so an older worker cannot
+  silently supply its early filter result as the new identity assessment.
+- Keep a five-second cooperative assessment budget; unfinished scoring stays
+  neutral. Additional inference can add latency; real-device acceptance is pending.
+- No new recording, re-enrolment, pairing rotation or live configuration change
+  is needed. Updating the add-on does not require another Core code update.
+
 ## 0.4.6
 
 - Include a recognised, assigned voice profile's display name in the encrypted

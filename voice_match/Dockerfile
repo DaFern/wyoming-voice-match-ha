@@ -4,7 +4,7 @@ ARG UPSTREAM_COMMIT=39bb5e48a19bf2cb95c1aadb00b3b7f7df7e5416
 ARG UPSTREAM_SHA256=bdf300c9291dfeeaff20f618bbb8196372a6992f921b40a9cbf7fb41b099f6cc
 LABEL io.hass.name="Wyoming Voice Match" \
       io.hass.description="CPU Wyoming speaker-filtering proxy" \
-      io.hass.type="addon" io.hass.version="0.3.2" io.hass.arch="amd64"
+      io.hass.type="addon" io.hass.version="0.4.7" io.hass.arch="amd64"
 
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \

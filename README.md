@@ -16,7 +16,7 @@ pass and a cutover is approved; never run both learning implementations together
 
 | Component | Type | Purpose | Status |
 | --- | --- | --- | --- |
-| **Wyoming Voice Match** (`voice_match/`) | **Home Assistant OS add-on** | Speaker filtering, voice management, Whisper proxy and optional paired personalisation endpoint | Add-on baseline **0.4.6**; source version does not establish the installed build |
+| **Wyoming Voice Match** (`voice_match/`) | **Home Assistant OS add-on** | Speaker filtering, voice management, Whisper proxy and optional paired personalisation endpoint | Add-on baseline **0.4.7**; source version does not establish the installed build |
 | **Voice Match Enrolment** (`custom_components/voice_match_enrollment/`) | **Separate Home Assistant custom integration** | Dedicated account-bound Companion-app voice-learning STT/conversation entities and encrypted learning bridge | Experimental; must be installed, configured and paired separately; not bundled into the add-on |
 | [**Codex Multi Assist**](https://github.com/DaFern/ha-codex-multi-assist) | **One optional combined custom integration (development)** | Independent Codex and learning entries; personalities, optional preferences and development speaker-aware automations | Source `0.7.0` plus commit SHA; Codex HA 2026.6+, learning HA 2026.10+; combined phone acceptance pending |
 | **Wyoming Whisper** | Existing STT service | Speech transcription downstream of Voice Match and ordinary transcription for learning controls | Required; Voice Match is a proxy, not an STT engine |
@@ -79,6 +79,7 @@ remains the fallback, and exact previous-assistant restoration is unsupported.
 - Standard Wyoming speaker-filtering endpoint: **10350**.
 - Optional personalised Wyoming endpoint: **10352**, for an explicitly paired compatible Codex Multi-Assist integration; disabled unless configured.
 - Recognised-person response preferences are **opt-in** and do not change an agent's base personality, Home Assistant user permissions, Piper voice or AI Task defaults.
+- Version 0.4.7 evaluates identity separately on the audio sent to Whisper, rather than reusing the filter's first accepted segment. It preserves both thresholds and stays neutral on incomplete or conflicting assessments; installation and real-device testing are separate steps.
 - Development code also sends the matched profile's display name to the paired agent, including when preferences are empty. Both component updates need separate deployment; uncertain matches stay unnamed. This does not fix the visible encrypted header below.
 - Speaker-aware sentence triggers/conditions exist in Codex Multi-Assist development code, but require separate review and live verification. Speaker recognition is **not** authentication and must not independently authorise locks, alarms, purchases or access to confidential data.
 - Codex development code offers a default-off **Clean voice messages** adapter with explicit personalised-source selection; it is not deployed by this add-on. The existing stock-Wyoming path still shows an encrypted metadata header in Assist, even though Codex strips it before model processing. Both deployment and test-pipeline selection need separate approval.
@@ -88,7 +89,7 @@ See [personalisation setup and privacy](docs/PERSONALIZATION.md), [Codex pairing
 
 ## Known limits and release readiness
 
-- **Source version is not deployment status.** The add-on manifest baseline is **0.4.6**; this does not imply a newer installed build. The repository cannot prove what any installation runs. Standalone and combined learning have separate installation/restart/acceptance requirements.
+- **Source version is not deployment status.** The add-on manifest baseline is **0.4.7**; this does not imply a newer installed build. The repository cannot prove what any installation runs. Standalone and combined learning have separate installation/restart/acceptance requirements.
 - Real-phone speech recognition, microphone endpointing, overlapping/TV speech, interruption, reconnect and playback echo need continued testing. Voice Match cannot guarantee the phone stops listening at the right time.
 - Full clean-install administrator onboarding and combined-phone acceptance remain incomplete; track [#3](https://github.com/DaFern/wyoming-voice-match-ha/issues/3), [#4](https://github.com/DaFern/wyoming-voice-match-ha/issues/4) and the [combined umbrella #5](https://github.com/DaFern/wyoming-voice-match-ha/issues/5).
 - Keep ordinary Whisper and existing Assist pipelines available for rollback. Do not change the default assistant or live configuration without explicit approval.

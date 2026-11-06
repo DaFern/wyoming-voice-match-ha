@@ -30,6 +30,7 @@ from learning_bridge import LearningBridge
 from learning_bridge_protocol import BridgeError, MAX_WIRE_BYTES
 from voices import Denied, VoiceStore, validate_voiceprint
 from personalization import Connector, set_preferences
+from identity_assessment import IDENTITY_MODE
 from speaker_packet import PacketError
 
 LOG = logging.getLogger("guided")
@@ -465,9 +466,14 @@ class Gateway(AsyncEventHandler):
         return True
 
     async def transcribe(self):
+        self.match = None
+        identity_requested = self.personalized and self.runtime.connector.config["enabled"]
         async with AsyncClient.from_uri(BACKEND) as client:
             await client.write_event(Transcribe(language=self.language).event())
-            await client.write_event(AudioStart(rate=16000, width=2, channels=1).event())
+            start = AudioStart(rate=16000, width=2, channels=1).event()
+            if identity_requested:
+                start.data["voice_match_identity"] = IDENTITY_MODE
+            await client.write_event(start)
             for offset in range(0, len(self.audio), 3200):
                 await client.write_event(AudioChunk(audio=bytes(self.audio[offset:offset + 3200]), rate=16000, width=2, channels=1).event())
             await client.write_event(AudioStop().event())
@@ -476,7 +482,9 @@ class Gateway(AsyncEventHandler):
                 if event is None:
                     return ""
                 if Transcript.is_type(event.type):
-                    self.match = event.data.get("voice_match")
+                    if (not identity_requested
+                            or event.data.get("voice_match_identity") == IDENTITY_MODE):
+                        self.match = event.data.get("voice_match")
                     return Transcript.from_event(event).text
 
 

@@ -1,6 +1,6 @@
 # Installation and operation
 
-The add-on baseline is **0.4.6**; check the installed build rather than inferring
+The add-on baseline is **0.4.7**; check the installed build rather than inferring
 it from these source docs. For the planned single combined integration, see
 [Codex Multi Assist installation/beta policy](https://github.com/DaFern/ha-codex-multi-assist/blob/main/docs/INSTALLATION.md)
 and [acceptance/rollback gates](https://github.com/DaFern/ha-codex-multi-assist/blob/main/docs/BETA_ACCEPTANCE.md).

@@ -26,6 +26,7 @@ class DistributionDocsTests(unittest.TestCase):
         readme = (ROOT / "README.md").read_text()
         self.assertIn(f"Add-on baseline **{version}**", readme)
         self.assertIn(f"## {version}\n", (ROOT / "voice_match/CHANGELOG.md").read_text())
+        self.assertIn(f'io.hass.version="{version}"', (ROOT / "voice_match/Dockerfile").read_text())
         self.assertNotIn("current 0.4.2 source", readme)
 
     def test_management_setup_link_is_static_external_guide_not_credential_adoption(self):

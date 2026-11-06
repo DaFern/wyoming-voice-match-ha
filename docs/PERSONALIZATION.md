@@ -78,6 +78,47 @@ non-personalised path. No additional HA API or public HTTP endpoint is introduce
 
 ## Transport and context boundaries
 
+### Independent identity scoring (0.4.7; real-device acceptance pending)
+
+The pinned upstream verifier can return as soon as a segment passes its speech
+filter threshold (normally 0.30). Reusing that early score for the stricter
+personalisation threshold (normally 0.50) can miss stronger later candidates.
+Longer speech alone therefore does not guarantee a stronger reported match.
+
+The 0.4.7 gateway requests a separate `best_score_v1` assessment only for
+the enabled personalised endpoint. Once the original filter accepts/extracts the
+speech, the worker evaluates **exactly the PCM that it will send to Whisper**.
+It reuses the pinned upstream candidate extraction and chunk scoring, examining
+the candidates, first-N portion and sliding windows without the early-accept
+return. The strongest complete score vector supplies similarity and runner-up
+margin; equal best scores for different people remain neutral, and tied windows
+for one person retain the more conservative margin. If the strongest identity
+differs from the filter's selected speaker, it stays neutral rather than relabelling
+someone else's extracted speech.
+
+Scoring uses a request-local shallow verifier copy and voiceprint-map snapshot,
+sharing the already loaded model read-only. It does not change the original
+filter result, configured thresholds, extraction or forwarded audio. Rejected
+speech is never rescored or sent to Whisper. Normal STT does not request the
+extra assessment. The existing connector still applies its current similarity,
+margin and profile-ownership checks; a returned score is not an accepted identity.
+
+Input remains capped at 60 seconds. Additional scoring runs off the event loop,
+with at most 64 chunks and a **five-second cooperative time budget** checked
+between/after inference calls. This cannot forcibly interrupt one slow Torch call.
+Errors, exhaustion, malformed scores or incomplete competing-speaker vectors
+discard the whole assessment, never use partial results or retry audio, and leave
+personalisation neutral. Extra inference can increase latency; real CPU/phone
+timing and recognition accuracy still need deployment acceptance testing.
+
+An internal per-request worker response marker distinguishes the new assessment
+from old early-filter metadata. A missing/unknown marker cannot fall back to that
+older identity result. This changes only the private loopback extension; encrypted
+Codex packets and pairing remain unchanged. No audio, names or score vectors are
+added to public events or diagnostic logs, and ordinary Assist audio is never
+saved as learning data. No live threshold, installed voiceprint or pipeline was
+changed while preparing this code; no recognition improvement is yet claimed.
+
 The private inference worker adds its **per-connection** matched speaker, similarity
 and gap to an internal Wyoming event. The outer gateway never uses a shared
 “last speaker” value. A matched/assigned profile passing the stricter preference
