@@ -1,5 +1,25 @@
 # Validation and acceptance checklist
 
+## Administrator UI refresh (development follow-up)
+
+The three administrator panels and advanced recognition controls start collapsed.
+HTML/Node checks cover current direct-connection guidance, retained consent/key
+warnings, valid static IDs, the nested setup shortcut, revealing invalid advanced
+inputs without mutation, and the unchanged explicit connector-save payload.
+Existing account, pairing, key-expiry/role-loss, uncertain-outcome and launcher
+fixtures still run against production JavaScript.
+
+Local unit discovery passed **231 tests / 4 built-engine skips** (235 total), using
+the cached pinned Wyoming 1.8.0 source and isolated test environment. Real Chromium
+checks passed at 390×844 and 1280×900, plus a 320-pixel dark-mode admin preview.
+There was no horizontal overflow; screenshots were inspected with synthetic
+accounts only. Native constraint validation opened/focused the hidden advanced
+input, and opening admin/setup guidance made no pairing or recording requests.
+These previews do not contact HA or verify actual Ingress/phone behaviour.
+
+No backend, source/threshold setting, key, recording or installed add-on was changed.
+This preparation step does not publish, rebuild, deploy or restart the add-on.
+
 ## Independent personalisation assessment (0.4.7)
 
 `tests/test_identity_assessment.py` adds 25 synthetic contracts for an early 0.35

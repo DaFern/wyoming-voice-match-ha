@@ -14,6 +14,7 @@ class Page(HTMLParser):
     def __init__(self):
         super().__init__()
         self.ids = set()
+        self.elements = {}
         self.form_controls = []
         self.in_form = False
 
@@ -21,6 +22,7 @@ class Page(HTMLParser):
         values = dict(attributes)
         if "id" in values:
             self.ids.add(values["id"])
+            self.elements[values["id"]] = (tag, values)
         if tag == "form":
             self.in_form = True
         elif self.in_form and tag in {"button", "input", "select", "textarea", "fieldset", "output"}:
@@ -75,6 +77,29 @@ class FrontendTests(unittest.TestCase):
     def test_javascript_static_id_references_exist(self):
         references = set(re.findall(r'\$\("([^"]+)"\)', (STATIC / "app.js").read_text()))
         self.assertEqual(references - self.page().ids, set())
+
+    def test_admin_sections_and_advanced_checks_start_collapsed(self):
+        page = self.page()
+        for name in ("saved-voices", "connector", "learning-bridge", "recognition-checks"):
+            with self.subTest(name=name):
+                tag, attributes = page.elements[name]
+                self.assertEqual(tag, "details")
+                self.assertNotIn("open", attributes)
+        self.assertIn("hidden", page.elements["administration"][1])
+        self.assertIn("hidden", page.elements["connector"][1])
+        self.assertIn("hidden", page.elements["learning-bridge"][1])
+
+    def test_admin_setup_uses_direct_voice_match_and_optional_instructions(self):
+        html = (STATIC / "index.html").read_text()
+        admin = html.split('<details id="administration"', 1)[1]
+        self.assertIn("No separate Wyoming connection is needed", admin)
+        self.assertIn("Personal instructions are optional", admin)
+        self.assertIn("Voice Match connection", admin)
+        self.assertIn("Voice Learning connection", admin)
+        self.assertNotIn("connect a separate Wyoming integration", admin)
+        for retained in ("Pairing does not start recording", "start learning", "continue learning",
+                         "pause learning", "cancel voice learning", "clipboard", "two minutes"):
+            self.assertIn(retained.lower(), admin.lower())
 
     @unittest.skipUnless(shutil.which("node"), "Node required for renderer execution")
     def test_phrase_renderer_progress_retry_resume_completion_and_safe_text(self):

@@ -177,15 +177,40 @@ async def review(output):
                     await evaluate("refresh(false)")
                     assert await evaluate("$('learning-help-status').textContent.includes(\"isn't set up yet\")")
                     state.update(user={"id": "alice", "name": "Alice", "admin": True},
-                                 profiles=[own, foreign], accounts=[{"id": "alice", "name": "Alice"}, {"id": "bob", "name": "Bob"}])
+                                 profiles=[own, foreign], accounts=[{"id": "alice", "name": "Alice"}, {"id": "bob", "name": "Bob"}],
+                                 connector={"enabled": True, "min_similarity": 0.5, "min_margin": 0.1},
+                                 learning_bridge={"paired": True})
                     await evaluate("refresh(false)")
                     assert not await evaluate("$('administration').hidden")
                     await evaluate("$('administration').open = true; $('administration').scrollIntoView()")
+                    assert await evaluate("['saved-voices', 'connector', 'learning-bridge'].every(id => !$(id).open)")
+                    assert await evaluate("[...$('administration').querySelectorAll(':scope > details > summary')].map(s => s.textContent).join('|') === 'Saved voices|Voice Match connection|Voice Learning connection'")
                     assert not await evaluate("[...$('profiles').querySelectorAll('button')].some(b => /Learn my voice|Resume learning/.test(b.textContent))")
                     await screenshot("05-admin-mobile.png")
+                    await call("Emulation.setDeviceMetricsOverride", {
+                        "width": 320, "height": 844, "deviceScaleFactor": 1, "mobile": True,
+                    }, session)
+                    await call("Emulation.setEmulatedMedia", {"features": [
+                        {"name": "prefers-color-scheme", "value": "dark"},
+                    ]}, session)
+                    await screenshot("12-admin-narrow-dark.png")
+                    await call("Emulation.setDeviceMetricsOverride", {
+                        "width": 390, "height": 844, "deviceScaleFactor": 1, "mobile": True,
+                    }, session)
+                    await call("Emulation.setEmulatedMedia", {"features": []}, session)
+                    await evaluate("$('connector').open = true; $('connector').scrollIntoView()")
+                    assert await evaluate("!$('recognition-checks').open")
+                    assert await evaluate("$('connector').textContent.includes('No separate Wyoming connection is needed')")
+                    await screenshot("09-voice-match-connection-mobile.png")
+                    assert not await evaluate("$('min-similarity').value = ''; $('connector-form').reportValidity()")
+                    assert await evaluate("$('recognition-checks').open && document.activeElement.id === 'min-similarity'")
+                    await evaluate("$('min-similarity').value = '0.5'; $('recognition-checks').open = false")
+                    assert len(calls) == 1, "Validation must not submit or change settings"
                     guide = "https://github.com/DaFern/ha-codex-multi-assist/blob/main/docs/INSTALLATION.md"
                     assert await evaluate(f"Boolean($('learning-bridge').querySelector('a[href=\"{guide}\"]'))")
-                    await evaluate("$('learning-bridge').scrollIntoView()")
+                    await click("Show administrator setup")
+                    assert await evaluate("$('administration').open && $('learning-bridge').open")
+                    assert await evaluate("!$('learning-compatibility').open")
                     assert await evaluate("!$('learning-bridge').hidden && $('learning-bridge').textContent.includes('not a published beta')")
                     await screenshot("08-combined-setup-guide-mobile.png")
                     assert len(calls) == 1, "Viewing setup guidance must not pair or start recording"
@@ -194,6 +219,11 @@ async def review(output):
                     }, session)
                     await evaluate("$('administration').open = false; $('learning-help').hidden = true; scrollTo(0, 0)")
                     await screenshot("06-desktop.png")
+                    await evaluate("$('administration').open = true; $('connector').open = false; $('learning-bridge').open = false; $('administration').scrollIntoView()")
+                    await screenshot("10-admin-desktop.png")
+                    await evaluate("$('saved-voices').open = true; $('saved-voices').scrollIntoView()")
+                    assert await evaluate("$('profiles').getClientRects().length > 0")
+                    await screenshot("11-saved-voices-desktop.png")
                     state.update(user={"id": "bob", "name": "Bob", "admin": False}, profiles=[foreign])
                     await evaluate("refresh(false)")
                     assert await evaluate("$('administration').hidden && $('learning-help').hidden")

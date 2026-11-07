@@ -69,43 +69,78 @@
     </section>
     <details id="administration" hidden>
       <summary>Administrator settings</summary>
-      <section><h2>Manage saved voices</h2><p>Manage accounts and saved data here. Each person must learn their own voice from their own signed-in phone.</p><div id="profiles"></div></section>
-    <section id="connector" hidden>
-      <h2>Codex personalisation pairing</h2>
-      <p>Administrator setup. The existing STT endpoint stays unchanged. Pair Codex Multi-Assist first, then connect a separate Wyoming integration to this add-on on port 10352 and use it only with the paired agent. An unpaired agent cannot interpret the encrypted request context.</p>
-      <button id="new-pairing" type="button">Create or replace pairing key</button>
-      <label for="pairing-key">New key (copy now; not shown again after leaving this page)</label>
-      <input id="pairing-key" type="password" readonly autocomplete="off">
-      <button id="copy-pairing" type="button">Copy key</button>
-      <form id="connector-form">
-        <label class="check"><input id="connector-enabled" type="checkbox">Enable the personalised endpoint</label>
-        <label for="min-similarity">Minimum personalisation similarity</label>
-        <input id="min-similarity" type="number" min="0" max="1" step="0.01" required>
-        <label for="min-margin">Minimum gap from another enrolled voice</label>
-        <input id="min-margin" type="number" min="0" max="1" step="0.01" required>
-        <p>These stricter checks affect preferences only, not existing speech filtering. Scores are not probabilities. Accepted but uncertain voices receive neutral preferences and fresh context. Voice matching is not authentication.</p>
-        <button type="submit">Save pairing settings</button>
-      </form>
-    </section>
-    <section id="learning-bridge" hidden>
-      <h2>Learning companion pairing</h2>
-      <p>Administrator setup for a trusted learning companion. Existing installations use the separate Voice Match Enrolment (Prototype) integration. This key delegates voice learning as active Home Assistant accounts. Never share it in a chat, automation or notification. It is not the Codex personalisation key.</p>
-      <p>Combined integration (development only, not a published beta): <a href="https://github.com/DaFern/ha-codex-multi-assist/blob/main/docs/INSTALLATION.md" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">Codex Multi Assist installation and beta policy</a>. It offers a separate Voice Match learning entry without a Codex account. Use the fork's custom HACS repository, not upstream Codex. Do not replace an existing companion or run both learning implementations without an approved cutover. This link installs nothing, shares no key and grants no recording consent.</p>
-      <p id="learning-bridge-status" role="status" aria-live="polite"></p>
-      <button id="new-learning-pairing" type="button">Create or replace learning key</button>
-      <button id="disable-learning-pairing" type="button">Disable learning bridge</button>
-      <div id="learning-key-result" hidden>
-        <label for="learning-pairing-key">New learning key (copy now; cannot be retrieved later)</label>
-        <input id="learning-pairing-key" type="password" readonly autocomplete="off" spellcheck="false">
-        <button id="copy-learning-pairing" type="button">Copy learning key</button>
-        <button id="clear-learning-pairing" type="button">Clear displayed key</button>
-      </div>
-      <p>The displayed key clears after two minutes or when this page is hidden. Copying puts it on your device's clipboard; clear the clipboard after setup. Returning to this page does not reveal an existing key.</p>
-      <p>For the retained standalone path, in Settings → Devices &amp; services → Add integration choose Voice Match Enrolment (Prototype). For a separately approved fresh combined test, choose Codex Assist → Voice Match learning instead. Enter this add-on's internal HTTP origin on port 8099 (not its browser Ingress address) and the learning key. Then explicitly enable phone learning and select ordinary Wyoming Whisper, not Voice Match. Address suggestions are not trusted pairing.</p>
-      <p>Create a separate Voice Learning assistant using both learning entities and your usual TTS voice. Keep normal assistants unchanged. Only an existing voice profile uniquely assigned to your signed-in account can be learned, after a spoken notice and a separate “start learning”. Say “pause learning” to keep unfinished recordings, or “cancel voice learning” to delete that unfinished session's recordings. Both keep the existing voiceprint. Before initial consent, cancellation starts no new learning and leaves earlier paused recordings unchanged. Pairing alone does not enable recording. Real phone audio and follow-up listening remain experimental; accountless Echo learning is not available.</p>
-      <p>In a verified paused conversation, follow the welcome-back prompt and say “continue learning” to confirm resuming. A new conversation, changed login or expired/interrupted session requires the short notice and “start learning” again. Say “privacy details” in Voice Learning to hear how recordings and your voiceprint are handled, including processing by your selected speech service, cleanup and backup limitations.</p>
-    </section>
-    <button id="retry" type="button" hidden>Retry voice engine</button>
+      <details id="saved-voices" class="admin-section">
+        <summary>Saved voices</summary>
+        <p>Manage accounts and saved data. Each person learns from their own signed-in phone.</p>
+        <div id="profiles"></div>
+      </details>
+      <details id="connector" class="admin-section" hidden>
+        <summary>Voice Match connection</summary>
+        <p>Connect your everyday assistant. Already connected? Keep the existing key.</p>
+        <ol class="setup-steps">
+          <li>Open Codex Multi Assist → Configure → <strong>Voice Match</strong> on the Codex entry.</li>
+          <li>Enter this add-on's internal hostname, port <strong>10352</strong> and personalisation key.</li>
+          <li>Enable the connection here and save. Use <strong>Voice Match</strong> as speech-to-text with a Codex agent from that entry.</li>
+        </ol>
+        <p>No separate Wyoming connection is needed. Personal instructions are optional.</p>
+        <button id="new-pairing" type="button">Create or replace pairing key</button>
+        <label for="pairing-key">New key (copy now; not shown again after leaving this page)</label>
+        <input id="pairing-key" type="password" readonly autocomplete="off">
+        <button id="copy-pairing" type="button">Copy key</button>
+        <form id="connector-form">
+          <label class="check"><input id="connector-enabled" type="checkbox">Enable Voice Match connection</label>
+          <details id="recognition-checks" class="admin-help">
+            <summary>Recognition checks (advanced)</summary>
+            <label for="min-similarity">Minimum recognition similarity</label>
+            <input id="min-similarity" type="number" min="0" max="1" step="0.01" required>
+            <label for="min-margin">Minimum gap from another enrolled voice</label>
+            <input id="min-margin" type="number" min="0" max="1" step="0.01" required>
+            <p>These checks affect recognised names and preferences, not speech filtering. Scores are not probabilities. Uncertain matches use neutral preferences and fresh context. Recognition is not authentication.</p>
+          </details>
+          <button type="submit">Save connection settings</button>
+        </form>
+      </details>
+      <details id="learning-bridge" class="admin-section" hidden>
+        <summary>Voice Learning connection</summary>
+        <p>Set up the separate learning assistant. This learning key is not your Voice Match personalisation key.</p>
+        <p id="learning-bridge-status" role="status" aria-live="polite"></p>
+        <ol class="setup-steps">
+          <li>In Devices &amp; services, add <strong>Codex Assist → Voice Match learning</strong>.</li>
+          <li>Enter this add-on's internal HTTP address on port <strong>8099</strong> and the learning key, not the browser Ingress address.</li>
+          <li>Enable phone learning and select <strong>ordinary Wyoming Whisper</strong>, not Voice Match.</li>
+          <li>Create a <strong>Voice Learning</strong> assistant with both learning entities and your usual TTS voice. Keep regular assistants unchanged.</li>
+        </ol>
+        <p>This key allows learning for signed-in Home Assistant accounts. Pairing does not start recording.</p>
+        <div class="actions">
+          <button id="new-learning-pairing" type="button">Create or replace learning key</button>
+          <button id="disable-learning-pairing" type="button">Disable learning bridge</button>
+        </div>
+        <div id="learning-key-result" hidden>
+          <label for="learning-pairing-key">New learning key (copy now; cannot be retrieved later)</label>
+          <input id="learning-pairing-key" type="password" readonly autocomplete="off" spellcheck="false">
+          <div class="actions">
+            <button id="copy-learning-pairing" type="button">Copy learning key</button>
+            <button id="clear-learning-pairing" type="button">Clear displayed key</button>
+          </div>
+        </div>
+        <details class="admin-help">
+          <summary>Key safety</summary>
+          <p>Never share this key in a chat, automation or notification. The displayed key clears after two minutes or when this page is hidden; it cannot be retrieved later. Copying puts it on your clipboard; clear the clipboard after setup.</p>
+        </details>
+        <details class="admin-help">
+          <summary>Recording and privacy</summary>
+          <p>Each person uses their own uniquely assigned profile and signed-in phone. Recording starts only after the spoken notice and separate “start learning” consent.</p>
+          <p>“Pause learning” keeps unfinished recordings. “Cancel voice learning” deletes that unfinished session's recordings. Both keep the existing voiceprint. Before initial consent, cancellation starts nothing and leaves earlier paused recordings unchanged.</p>
+          <p>In a verified paused conversation, confirm with “continue learning”. A new conversation, changed login or expired/interrupted session needs the notice and “start learning” again.</p>
+          <p>Say “privacy details” in Voice Learning for speech-service processing, cleanup and backup limitations. Real phone audio and follow-up listening remain experimental; accountless Echo learning is not available.</p>
+        </details>
+        <details id="learning-compatibility" class="admin-help">
+          <summary>Installation and compatibility</summary>
+          <p>Combined integration (development only, not a published beta): <a href="https://github.com/DaFern/ha-codex-multi-assist/blob/main/docs/INSTALLATION.md" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">Codex Multi Assist installation and beta policy</a>. Use the fork's custom HACS repository, not upstream Codex. A learning entry needs no Codex account. This link installs nothing, shares no key and grants no recording consent.</p>
+          <p>Already using Voice Match Enrolment (Prototype)? Keep that standalone path until an approved cutover; do not run both learning implementations. Enter the learning key in that integration instead. Address suggestions do not verify pairing.</p>
+        </details>
+      </details>
+      <button id="retry" type="button" hidden>Retry voice engine</button>
     </details>
   </main>
 </body>

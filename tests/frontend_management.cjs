@@ -127,6 +127,14 @@ async function checks() {
   admin.setCurrent(admin.snapshot({ user: { id: "alice", admin: true }, profiles: [profile, bob], accounts: [] }));
   await admin.refresh();
   assert.equal(admin.get("administration").hidden, false);
+  admin.get("show-admin-setup").events.click();
+  assert.equal(admin.get("administration").open, true);
+  assert.equal(admin.get("learning-bridge").open, true, "Setup shortcut opens the nested connection panel");
+  const readsBeforeValidation = admin.calls.length;
+  admin.get("recognition-checks").open = false;
+  admin.get("connector-form").events.invalid();
+  assert.equal(admin.get("recognition-checks").open, true, "Invalid advanced inputs must be reachable");
+  assert.equal(admin.calls.length, readsBeforeValidation, "Opening panels and validating cannot mutate settings");
   assert(!admin.all("profiles").some(node => /Re-enrol|Resume learning|Learn my voice/.test(node.textContent)));
   assert.equal(admin.all("own-profile").filter(node => node.textContent === "Learn my voice again").length, 1);
   admin.context.foreign = bob;
@@ -215,6 +223,25 @@ async function checks() {
   await active.refresh();
   active.run("restoreControls()");
   assert.equal(active.button("own-profile", "Learn my voice again").disabled, true);
+
+  const connection = harness();
+  const connectedState = connection.snapshot({ user: { id: "alice", admin: true },
+    accounts: [], connector: { enabled: true, min_similarity: 0.5, min_margin: 0.1 } });
+  connection.setCurrent(connectedState);
+  await connection.refresh();
+  connection.get("connector-enabled").checked = false;
+  connection.get("min-similarity").value = "0.7";
+  connection.get("min-margin").value = "0.2";
+  connection.setFetch(async (url, options) => {
+    if (url === "api/state") return connection.response(connectedState);
+    assert.deepEqual(JSON.parse(options.body), { action: "connector_configure", enabled: false,
+      min_similarity: 0.7, min_margin: 0.2, confirm: true });
+    assert.equal(options.headers["X-Voice-CSRF"], "synthetic-csrf");
+    return connection.response({ ok: true });
+  });
+  await connection.get("connector-form").events.submit({ preventDefault() {} });
+  assert.equal(connection.calls.filter(call => call.url === "api/action").length, 1,
+    "Collapsed recognition settings retain the existing explicit-save payload");
   console.log("Own-account management UI checks passed");
 }
 

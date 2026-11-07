@@ -24,6 +24,12 @@ a[aria-disabled="true"] { opacity: .6; cursor: default; }
 .danger { border-inline-start: 3px solid #b43b3b; padding-inline-start: 12px; margin-top: 18px; }
 details { margin: 16px 0; }
 summary { cursor: pointer; min-height: 44px; line-height: 1.5; overflow-wrap: anywhere; }
+#administration > summary, .admin-section > summary { font-weight: 600; }
+#administration .admin-section { border: 1px solid GrayText; border-radius: 12px; padding: 14px 18px; margin: 12px 0; }
+#administration .admin-section > summary { display: list-item; }
+#administration .setup-steps { padding-inline-start: 24px; }
+#administration .setup-steps li { margin-bottom: 8px; }
+#administration .admin-help { border-block-start: 1px solid GrayText; padding-block-start: 8px; }
 li { line-height: 1.6; margin-bottom: 12px; }
 strong, p { overflow-wrap: anywhere; }
 @media (max-width: 480px) { main { padding: 12px; } section { padding: 14px; } .actions button, .actions a { flex: 1 1 100%; } }

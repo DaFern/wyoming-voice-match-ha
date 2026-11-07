@@ -46,6 +46,12 @@ See [detailed installation and rollback](voice_match/DOCS.md), [testing and vali
 
 The add-on provides an authenticated **Manage voices** Ingress page, optionally available from the sidebar. It supports account-owned voice profiles, recording progress, consent and sample cleanup. Administrators can manage profiles; ordinary users are limited to their own.
 
+The development administrator layout groups **Saved voices**, **Voice Match
+connection** and **Voice Learning connection** into collapsed panels. It uses
+current direct-Codex setup steps, with technical and compatibility help expandable.
+This UI follow-up needs a separately approved add-on build/update before it appears
+on an installed instance; see [layout and safety boundaries](docs/MANAGEMENT_UI.md).
+
 **Phone learning is a separate, experimental integration flow**, not the add-on management page's Start button. The development management page deliberately disables direct Start/re-enrol because ordinary Assist audio must not silently become training data. Do **not** bypass this restriction by enabling global recording.
 
 For the **retained standalone path**, with compatible versions and explicitly
@@ -82,7 +88,7 @@ remains the fallback, and exact previous-assistant restoration is unsupported.
 - Version 0.4.7 evaluates identity separately on the audio sent to Whisper, rather than reusing the filter's first accepted segment. It preserves both thresholds and stays neutral on incomplete or conflicting assessments; installation and real-device testing are separate steps.
 - Development code also sends the matched profile's display name to the paired agent, including when preferences are empty. Both component updates need separate deployment; uncertain matches stay unnamed. This does not fix the visible encrypted header below.
 - Speaker-aware sentence triggers/conditions exist in Codex Multi-Assist development code, but require separate review and live verification. Speaker recognition is **not** authentication and must not independently authorise locks, alarms, purchases or access to confidential data.
-- Codex development code offers a default-off **Clean voice messages** adapter with explicit personalised-source selection; it is not deployed by this add-on. The existing stock-Wyoming path still shows an encrypted metadata header in Assist, even though Codex strips it before model processing. Both deployment and test-pipeline selection need separate approval.
+- Matching Codex code offers one **Voice Match** STT choice with clean messages, direct connection to port **10352** and optional personal instructions; no extra Wyoming STT source is needed. Older source-based configurations remain supported. The stock personalised-Wyoming path still exposes an encrypted header in chat; installing this add-on alone does not update the integration or change a pipeline. See [Codex setup and migration](https://github.com/DaFern/ha-codex-multi-assist/blob/main/docs/CLEAN_SPEAKER_STT_PROTOTYPE.md).
 - No production Echo/Alexa enrolment adapter is included. Speaker-based agent routing and guest mode are not complete.
 
 See [personalisation setup and privacy](docs/PERSONALIZATION.md), [Codex pairing documentation](https://github.com/DaFern/ha-codex-multi-assist/blob/main/docs/VOICE_MATCH.md), and [Codex speaker automations](https://github.com/DaFern/ha-codex-multi-assist/blob/main/docs/SPEAKER_AUTOMATIONS.md).

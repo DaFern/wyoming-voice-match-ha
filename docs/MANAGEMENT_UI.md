@@ -1,5 +1,32 @@
 # Own-account management UI — issue #3 development
 
+## Administrator layout refresh (development follow-up)
+
+Administrator settings now opens to three collapsed panels: **Saved voices**,
+**Voice Match connection** and **Voice Learning connection**. The everyday profile,
+learning guide, personal-instructions form and privacy section remain unchanged.
+
+The Voice Match instructions use the current direct Codex connection: Configure
+→ Voice Match, this add-on's internal hostname, port 10352 and personalisation key.
+No extra Wyoming source is needed with the matching integration. Personal
+instructions are optional. Already configured users are told to retain their key.
+Recognition similarity/margin controls live under **Recognition checks (advanced)**;
+invalid controls automatically open that panel without submitting a request.
+
+Voice Learning has four short setup steps for the learning entry, internal HTTP
+address on port 8099, ordinary Whisper and separate learning assistant. Key safety,
+recording/privacy and installation/compatibility notes are expandable. Standalone
+companion instructions and the unpublished-beta warning remain in compatibility
+help rather than dominating the main setup. The administrator shortcut opens both
+the outer settings and the nested learning panel before scrolling.
+
+Element IDs, explicit action payloads, confirmation dialogs, permissions, busy
+guards, no-retry behaviour and key-clearing rules are retained. This does not
+change pairing, thresholds, enrolment consent, stored voices or backend code.
+It is source-only: no version bump, commit/push, add-on rebuild or deployment is
+included in this preparation step. The historical stages below retain their
+original status and validation results.
+
 This is an uncommitted development follow-up to deployed 0.4.3. No release bump,
 publication, live UI deployment, recording, deletion or restart is included.
 

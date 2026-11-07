@@ -38,7 +38,7 @@ function renderLearningPairing() {
   const paired = Boolean(state?.learning_bridge?.paired);
   $("learning-bridge").hidden = !admin;
   $("learning-bridge-status").textContent = !admin ? "" : paired
-    ? "Learning key configured. Companion connection and phone setup are not verified here."
+    ? "Learning key configured. Connection not verified here."
     : "Learning bridge disabled. Create a key to pair the companion.";
   $("new-learning-pairing").disabled = !admin || busy || Boolean(state?.learning);
   $("disable-learning-pairing").disabled = !admin || busy || Boolean(state?.learning) || !paired;
@@ -89,7 +89,7 @@ async function changeLearningPairing(action) {
       $("learning-pairing-key").value = newKey;
       $("learning-key-result").hidden = false;
       learningKeyTimer = setTimeout(clearLearningKey, 120000);
-      message("Learning key created. Copy it into Voice Match Enrolment, not Codex or a chat.");
+      message("Learning key created. Copy it into the Voice Match learning entry, not Voice Match pairing or a chat.");
     } else if (sameAdmin) {
       message(saved && action === "learning_bridge_disable" && !state.learning_bridge?.paired
         ? "Learning bridge disabled. Codex pairing is unchanged."
@@ -488,6 +488,7 @@ $("open-learning-app").addEventListener("click", (event) => {
 $("show-admin-setup").addEventListener("click", () => {
   if (!state?.user.admin || busy) return;
   $("administration").open = true;
+  $("learning-bridge").open = true;
   $("learning-bridge").scrollIntoView({ block: "start" });
 });
 $("preferences-form").addEventListener("submit", (event) => {
@@ -505,6 +506,9 @@ $("copy-pairing").addEventListener("click", async () => {
   try { await navigator.clipboard.writeText($("pairing-key").value); message("Pairing key copied. Paste it into Codex's Voice Match options, not into a chat."); }
   catch { $("pairing-key").select(); message("Use your device's Copy command on the selected key."); }
 });
+$("connector-form").addEventListener("invalid", () => {
+  $("recognition-checks").open = true;
+}, true);
 $("connector-form").addEventListener("submit", (event) => {
   event.preventDefault();
   send({ action: "connector_configure", enabled: $("connector-enabled").checked,
@@ -518,7 +522,7 @@ $("copy-learning-pairing").addEventListener("click", async () => {
   const epoch = learningKeyEpoch;
   try {
     await navigator.clipboard.writeText($("learning-pairing-key").value);
-    if (epoch === learningKeyEpoch) message("Learning key copied. Paste it into Voice Match Enrolment, not a chat. Clear your clipboard after setup.");
+    if (epoch === learningKeyEpoch) message("Learning key copied. Paste it into the Voice Match learning entry, not Voice Match pairing or a chat. Clear your clipboard after setup.");
   } catch {
     if (epoch !== learningKeyEpoch || document.hidden) return;
     $("learning-pairing-key").select();
