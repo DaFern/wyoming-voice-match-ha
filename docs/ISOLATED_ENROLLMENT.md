@@ -1,13 +1,12 @@
-# Isolated enrolment transport — development prototype
+# Isolated enrolment transport
 
-**Not deployed and not an Echo connector.** The development companion now has an
-off-by-default phone learning STT/agent pair; no live pipeline was created. The
-installed 0.3.2 release still has global Wyoming training capture. Do not assume
-these protections exist there. No version, release or live setting was changed.
+Voice Match accepts learning samples only through its separate authorised transport.
+The combined integration provides an opt-in phone learning STT/agent pair. No
+production Echo/satellite learning connector is supplied.
 
 ## Boundary
 
-Normal Wyoming ports **10350 and 10352 never feed training** in this prototype.
+Normal Wyoming ports **10350 and 10352 never feed training**.
 They continue using the existing filtered worker while learning runs. Starting,
 pausing and expiring learning do not restart that worker or invalidate ordinary
 in-flight requests. No existing voiceprint means normal recognition remains
@@ -15,15 +14,15 @@ unavailable; this is not an unmatched-speaker bypass.
 
 Only the separate authenticated HTTP learning transport can queue samples. Its
 management/browser routes use existing Home Assistant Ingress identity and CSRF
-protection. A later development stage adds an explicitly paired, encrypted
-background companion bridge with fresh delegated-account checks; it does not
+protection. The explicitly paired, encrypted background companion bridge performs
+fresh delegated-account checks; it does not
 forge Ingress headers or trust an IP address as speaker identity. Neither path
 adds a new public port. See [the companion boundary](ENROLLMENT_COMPANION.md).
 
 **The source label is not physical device authentication.** A capability holder
 can claim that label. The future HA/Echo connector must establish the actual
 device, keep capabilities private, and reserve that device's recording path. This
-prototype proves isolation from ordinary Assist requests and between capability
+transport enforces isolation from ordinary Assist requests and between capability
 holders, not that a real Echo or a particular human supplied the bytes. Do not
 expose this as a generic learning pipeline or publish the capability in a model,
 entity state, URL, trace, log, automation or notification.
@@ -84,18 +83,17 @@ only the dedicated binary sample route reads the larger body.
 - Recognition and generation may compete for CPU/memory. Local tests use stubbed
   inference; they do not establish real concurrency performance or model safety.
 - Existing partial samples are not silently discarded or assumed trustworthy.
-  Sessions collected with the old global-capture design may already contain the
-  wrong speaker. Review/delete them explicitly before trusted fresh enrolment.
+  Suspected contaminated samples need explicit review/deletion before fresh learning.
 - Nearby people, recordings/replays or television can contaminate even the
   correctly reserved microphone. This is not biometric authentication.
 
 ## UI and future work
 
-The management page retains profiles, progress, phrases, pause and cleanup. Its
-Start control is disabled with **Learning connector required**; a submitted form
-cannot fall back to ordinary Assist recording. A separate companion coordinator
-and encrypted bridge now exist in the checkout, with an opt-in phone STT/agent
-pair using the normal Assist microphone protocol. No real Echo adapter exists.
+The management page provides own profiles, progress, phrases, pause and cleanup.
+Learn/Resume opens the separate native learning assistant where supported; manual
+selection remains available. The page cannot itself grant recording consent or
+fall back to ordinary Assist capture. A companion coordinator and encrypted bridge
+support the opt-in phone STT/agent pair. No real Echo adapter exists.
 There is no separate browser microphone interface or automatic pipeline switch.
 See [phone implementation, consent and limits](PHONE_PIPELINE_FEASIBILITY.md).
 

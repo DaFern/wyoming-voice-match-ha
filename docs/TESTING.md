@@ -1,437 +1,103 @@
-# Validation and acceptance checklist
+# Testing and acceptance
 
-## Administrator UI refresh (development follow-up)
+Automated checks use synthetic accounts, PCM and inference results, not biometric
+fixtures or production credentials. They do not establish real-world recognition
+accuracy, all Companion behaviour or clean-install readiness.
 
-The three administrator panels and advanced recognition controls start collapsed.
-HTML/Node checks cover current direct-connection guidance, retained consent/key
-warnings, valid static IDs, the nested setup shortcut, revealing invalid advanced
-inputs without mutation, and the unchanged explicit connector-save payload.
-Existing account, pairing, key-expiry/role-loss, uncertain-outcome and launcher
-fixtures still run against production JavaScript.
+## Run checks
 
-Local unit discovery passed **231 tests / 4 built-engine skips** (235 total), using
-the cached pinned Wyoming 1.8.0 source and isolated test environment. Real Chromium
-checks passed at 390×844 and 1280×900, plus a 320-pixel dark-mode admin preview.
-There was no horizontal overflow; screenshots were inspected with synthetic
-accounts only. Native constraint validation opened/focused the hidden advanced
-input, and opening admin/setup guidance made no pairing or recording requests.
-These previews do not contact HA or verify actual Ingress/phone behaviour.
-
-No backend, source/threshold setting, key, recording or installed add-on was changed.
-This preparation step does not publish, rebuild, deploy or restart the add-on.
-
-## Independent personalisation assessment (0.4.7)
-
-`tests/test_identity_assessment.py` adds 25 synthetic contracts for an early 0.35
-filter result followed by a stronger identity window; unchanged filter thresholds
-and model reuse; first-N/sliding windows; same-window margins; conflicting/tied
-speakers; partial/malformed/nonfinite scores; budget/capacity/error neutrality;
-unchanged connector similarity/margin checks; request-local worker mode binding;
-old-worker fail-neutral behaviour; exact forwarded PCM; rejected/normal speech;
-no fallback to the filter score; reset and overlapping-request isolation.
-
-Local full-suite result: **229 passed / 4 built-engine skips** (233 discovered),
-using cached pinned Wyoming 1.8.0 and the isolated Python environment. Targeted
-fatal-error Ruff checks and diff checks passed. Inference scores and engine
-boundaries in these new tests are synthetic, not real recordings/model acceptance.
-The four existing real-upstream handler contracts still require a built image.
-
-The new assessment has a cooperative five-second budget checked around each
-inference call, not a hard pre-emption of Torch. Extra CPU latency, profile quality,
-false accepts/rejects and real-phone behaviour remain unmeasured. The manifest and
-container label were aligned to 0.4.7 for the approved repository update. These
-checks do not build a container or establish live installation. No deployment,
-restart, threshold/pairing change, live recording or re-enrolment was performed.
-
-## Combined integration distribution preparation (unreleased)
-
-The add-on baseline remains `0.4.5`. Unreleased documentation and administrator
-setup-link changes point to the single combined integration's
-[installation/beta policy](https://github.com/DaFern/ha-codex-multi-assist/blob/main/docs/INSTALLATION.md)
-and [unexecuted acceptance checklist](https://github.com/DaFern/ha-codex-multi-assist/blob/main/docs/BETA_ACCEPTANCE.md).
-Dependency-light `tests/test_distribution_docs.py` checks baseline version parity,
-safe static external-link attributes and retention of standalone instructions.
-The existing management/launcher/pairing fixtures still exercise unchanged JS.
-These are distribution preparations, not a new add-on version or combined beta.
-Historical stage results below do not establish current deployment state.
-
-Local phase 4 validation: **203 unit tests passed / 4 built-engine-only skips**
-(207 discovered). Synthetic Chromium mobile/desktop management checks passed,
-including the combined setup link's visible development warning, no horizontal
-overflow and no pairing/recording mutation while viewing it. The paired combined
-integration runner also passed all **53** encrypted bridge/controller tests.
-No real HAOS install, built-engine acceptance, Android combined handoff, release,
-deployment, restart, key change or voice-data deletion occurred.
-
-## Authenticated-login reconnect prototype (development only)
-
-Local full-suite validation: **144 unit tests passed, 4 upstream-engine tests
-skipped** (148 discovered); **49 native HA 2026.10.0 tests passed**. Targeted
-Ruff, Python AST parsing and diff checks passed.
-
-The development companion scopes guided state to the same HA-authenticated normal
-login, account and chat, while retaining exact task/socket checks for each clip.
-Login ID lookup never reads or logs its bearer value. Captures in one scope cannot
-overlap across sockets; completed turns may reconnect, but interrupted captures
-invalidate audio/permits and require fresh consent. Fresh upload permits are
-issued before each recording and cannot be renewed after an expired recording.
-
-See [current phone control safeguards](PHONE_CONTROL_FIXES.md) for the later
-pause/discard split, normalised control matching and real-device limitations.
-
-Native tests exercise a new socket on each notice/start learning/sample/pause turn, no after
-notice reconnect, other logins on the same account, changed chats, expired consent,
-missing/revoked/expired/system/long-lived credentials, actual auth-session removal,
-revocation during STT and before agent/mutating operations, concurrent sockets,
-and aborted capture. Unit tests also exercise fresh/expired permits over the real
-encrypted loopback bridge and unchanged diagnostic redaction. No real Android,
-Whisper RPC, DSP/TTS echo behaviour or spoken-no acceptance is established.
-
-No commit/push, live deployment, restart or logger/pairing/pipeline change occurred.
-The earlier approved diagnostic logger remains enabled on the live installation.
-See [the revised trust boundary](PHONE_PIPELINE_FEASIBILITY.md#authenticated-login-reconnect-prototype-development-not-deployed).
-
-## Streaming input fix and reconnect reproduction (earlier development stage)
-
-Local full-suite validation: **141 unit tests passed, 4 upstream-engine tests
-skipped** (145 discovered); **33 native HA 2026.10.0 tests passed**. Targeted
-Ruff, Python AST parsing and diff checks passed.
-
-The early-endpoint test first timed out against the buffer-before-source
-implementation. It now passes without sending client EOF. Native tests check
-that only source-consumed audio reaches a permitted synthetic sample, overlong
-streams are rejected even if a provider swallows the error, disconnect cancels
-the source and drops its clip, a source upload child task cannot steal the native
-handoff owner, and a provider that reads no audio cannot succeed.
-
-At that stage a reconnect test retained fresh-consent-on-new-socket behaviour and
-reproduced why per-socket flows could not progress on a client that closes after
-each pipeline. The auth-session feasibility test distinguished a reconnected login
-from another login belonging to the same account. The subsequently approved
-development design above replaces that across-turn scope, not per-clip checks.
-
-All audio/provider boundaries are synthetic; real Whisper RPC, endpointer/VAD,
-TTS echo exclusion, installed Android behaviour and restored phone enrolment
-remain unverified. No commit/push, deployment, restart or additional live logger
-change occurred. See [streaming and reconnect limits](PHONE_PIPELINE_FEASIBILITY.md#streaming-fix-and-reconnect-blocker-development-not-deployed).
-
-## Repeated consent notice diagnostics (development only)
-
-Local full-suite validation: **141 unit tests passed, 4 upstream-engine tests
-skipped** (145 discovered); **24 native HA 2026.10.0 tests passed**. Targeted
-Ruff, Python AST parsing and diff checks passed.
-
-The companion adds INFO-level allowlisted control/duration/scope-continuity logs,
-not a cancellation fix. Unit tests check category matching, unchanged punctuation
-and consent behaviour, scope changes/expiry and removal of sensitive values from
-the complete log-record payload. Handoff tests distinguish rejection/expiry/missing
-clips without logging their contents. Native pipeline tests exercise recognised
-"no", punctuation-rejected "No,", notice-like transcription, STT-only cleanup,
-typed-marker denial and a source exception containing a synthetic sensitive value.
-
-No live diagnostic deployment, logger change, recording, publication or restart
-was performed. The phone report is not yet explained; first-turn spoken notice and
-follow-up listening were observed by the user, but cancellation acceptance failed.
-See [diagnostic interpretation and privacy limits](PHONE_PIPELINE_FEASIBILITY.md#repeated-consent-notice-diagnostics-development-not-deployed).
-
-## Learning companion pairing page (0.4.1, live acceptance pending)
-
-Local full-suite validation: **135 unit tests passed, 4 upstream-engine tests
-skipped** (139 discovered); **21 native HA 2026.10.0 tests passed**. JavaScript
-syntax and diff checks passed. No live key or biometric recording was used.
-
-The checkout adds separate administrator-only learning key create/replace,
-copy/clear and disable controls, without backend protocol or companion changes.
-The existing Ingress API still enforces current administrator role, confirmation,
-CSRF and no active learning. No live key was generated, and 0.4.0 does not include
-these page controls yet.
-
-`tests/frontend_learning_pairing.cjs` executes the actual handlers with a minimal
-DOM and synthetic responses. It checks confirmation/CSRF, separation from Codex,
-masked-key handling, no key in state or status messages, polling versus expiry,
-page hiding/leaving, account/role changes, failed access, clipboard fallback,
-lost/denied/incomplete responses, request timeout and duplicate-click refusal.
-Uncertain mutations are not retried. HTTP tests independently verify server-side
-administrator/CSRF/confirmation checks, no key in state, no-store responses,
-unchanged Codex settings and blocked pairing changes during learning.
-
-These are not real-browser, Companion clipboard or live Ingress acceptance tests.
-Publication, add-on update and manual pairing remain separate approved steps.
-
-## Dedicated phone learning implementation (development only)
-
-The off-by-default learning STT/agent pair and consent controller are implemented
-in the checkout, not deployed. Current full-suite results: **132 unit tests passed,
-4 upstream-engine tests skipped** (136 discovered), and **21 native HA 2026.10.0
-tests passed**. The earlier sections retain stage-specific historical evidence.
-Targeted phone/companion/bridge Ruff, Python AST/JSON parsing and diff checks passed.
-`guided.py` retained the same eight pre-existing Ruff findings as HEAD, with no
-new lint findings; unrelated cleanup was not included.
-
-Native phone tests load the actual entities with synthetic Whisper/provider and
-backend boundaries. They cover notice then separate start learning, saved-count completion,
-pause exclusion, other-connection isolation, intercepted/STT-only/typed-marker
-cleanup, disconnect pause, missing/recursive source rejection and retained valid
-source defaults. Unit tests exercise the real encrypted loopback bridge with
-synthetic audio/inference: own-profile restrictions even for administrators,
-ownership/account revocation, stale turns, expiry, capacity, exact-task one-use
-handoffs, disconnect cleanup and uncertain/cancelled requests without replay.
-
-No actual Android microphone, follow-up listening, real Whisper RPC, TTS playback,
-DSP echo handling, HA 2026.10.1 patch acceptance or Echo hardware was tested. Task
-identity is version-dependent and fails closed; global triggers remain unchanged.
-No commit/push, CI submission, version bump, installation, live pairing, pipeline
-change or restart occurred for this phone implementation.
-
-## Standard Companion-app pipeline feasibility (earlier investigation)
-
-Six new native HA 2026.10.0 probes passed through the actual authenticated
-WebSocket pipeline, with synthetic PCM, stubbed DSP and test-only STT/agent
-entities. They verify caller context, exact-task audio handoff, parallel users,
-copied/replayed marker rejection even while another recording is pending, STT-only cleanup and global sentence-trigger
-interception despite local-intent preference being off. Together with the
-existing seven companion contracts, that stage contained 13 native tests.
-
-That probe alone was not a production phone adapter, selectable learning pipeline, stable
-HA task-identity metadata contract, Android microphone/UX acceptance or real Echo
-support. In particular, global triggers can intercept before the learning agent;
-unclaimed recordings must be discarded rather than trained. No production code
-or live configuration changed in that probe stage. The implementation described
-above came later. See [findings and consent decision](PHONE_PIPELINE_FEASIBILITY.md).
-
-## HA companion coordinator and encrypted bridge (development only)
-
-Local Python 3.14 add-on/unit suite: **111 tests passed, 4 upstream-engine tests
-skipped** (115 discovered). Separately, **7 native HA 2026.10.0 contracts passed**
-in the existing isolated framework environment. Targeted Ruff, JavaScript syntax,
-Python AST/JSON parsing and diff checks passed. The first seven new bridge tests
-failed before the companion modules existed. Early native test failures were
-test-fixture mistakes, corrected to use a real isolated test user and its
-client-bound access token; no production authentication was weakened.
-
-Coverage includes separate admin-only pairing, 0600 key-file permissions, no key
-in general state, encryption, wrong-key/tamper/TTL rejection, request replay,
-reflection/wrong-boot rejection, bounded replay-cache refusal, fresh delegated
-account checks, revocation during lookup, one-use recording permits, session-bound
-terminal status/cancellation and byte-identical codec copies. The simulated
-speaker exercises spoken-prompt-before-capture ordering, rejected-sample retry,
-validated completion/cleanup, normal Assist routing, cancellation, late/repeated
-cancel, restoration failure/recovery, revoked-account cleanup without privilege
-fallback and uncertain sample acceptance without blind resubmission.
-
-Native HA contracts check actual integration setup/unload, masked manual pairing,
-invalid pairing not being saved, real WebSocket caller binding, rejection of
-caller-supplied user IDs/unregistered devices, other-user status/cancel denial,
-and refusing to unload an unrestored source. These contracts use mock bridge and
-adapter boundaries; they are not an installed integration or real-device test.
-
-No real speaker adapter, device authentication/capture, automatic pipeline
-switch, screenless consent/command recognition or physical Echo testing exists
-yet. Real network/Ingress/HAOS behaviour, model-generation resource use, hardware
-restoration and exhaustive disconnect/timeouts remain unverified. No CI was
-submitted. See [the companion protocol and trust model](ENROLLMENT_COMPANION.md).
-
-No existing version bump, commit/push, deployment, live pairing-key creation,
-installation, flashing, setting change or restart was performed. The new
-companion manifest's `0.0.0` is a prototype placeholder, not an add-on release.
-
-## Isolated enrolment transport (development only)
-
-Local Python 3.14 suite: **87 tests passed, 4 upstream-engine tests skipped**
-(91 discovered). JavaScript syntax and `git diff --check` passed. The first six
-new transport regressions failed against the existing implementation before the
-transport was added: new isolated starts were rejected and the old global start
-was still accepted.
-
-The simulated speaker uses an aiohttp test server with stubbed Ingress identity,
-synthetic PCM and stubbed voiceprint generation. Coverage includes fresh consent,
-explicit source binding, one-use permits, rejected-audio retry, count binding,
-permit/session expiry, pause/restart invalidation, wrong account/source/session,
-CSRF/content-type checks, upload-time identity change, admin demotion, bounded
-oversized/odd audio, overlapping upload denial, final validated installation,
-cleanup and no credentials in state or capability representations. Ordinary and
-personalised gateway handlers continue calling the filtered worker while a
-learning sample is held processing; neither handler can contribute to training.
-
-The minimal-DOM renderer harness also confirms the management Start control is
-disabled pending a trusted connector. There is no automatic device routing,
-screenless consent/phrasing, HA integration, browser recording or real Echo test.
-Transport labels/capabilities do not attest physical device or biological speaker
-identity. Real model concurrency/resource use, upload-timeout/disconnect fault
-injection, Ingress/mobile behaviour, actual browser rendering and acoustic
-performance remain unverified. See [the protocol and remaining work](ISOLATED_ENROLLMENT.md).
-
-No version bump, commit/push, CI submission, installation, deployment, live
-re-enrolment, setting change or restart was performed for this prototype. The
-installed 0.3.2 release does not include this isolation.
-
-## Guided enrolment phrases (0.3.2, not deployed)
-
-Local Python 3.14 validation: **71 tests passed, 4 upstream-engine tests
-skipped** (75 discovered). JavaScript syntax and `git diff --check` passed.
-The phrase-module tests failed before implementation because the module did not
-exist. New coverage checks 30 distinct 12–18-word phrases, saved-count selection,
-completion, existing 1–100 targets, rejection without advancement, authorised
-visibility, pause/restart/resume, and no next prompt during final generation.
-
-A Node minimal-DOM harness executes the actual management renderer and checks
-literal text, retry, advancement, resume, clearing on errors/absent jobs, stable
-phrase updates during polling, and separate saving/voiceprint-processing labels.
-This is not a real browser or screen-reader test. An initial harness failure was
-fixed by modelling the DOM's Boolean `hidden` property coercion correctly.
-
-Container build, visual/mobile accessibility, real Assist recordings and improved
-recognition after re-enrolment remain unverified. Exact phrase wording is not
-validated; audio acceptance, thresholds, consent, ownership, cleanup and atomic
-voiceprint replacement are unchanged. Version 0.3.2 packages this feature for
-separately approved installation. These local results do not establish CI success,
-deployment, re-enrolment, live setting changes or restart.
-
-## Minimal request diagnostics (development)
-
-Local Python 3.14 diagnostic validation: **65 tests passed, 4 upstream-engine
-tests skipped**. The isolated environment provided aiohttp, NumPy, Wyoming 1.8.0
-and cryptography; no test dependencies were installed into HA or the live app.
-New tests first failed because the diagnostic tag/decision logs did not exist.
-
-Sender tests check matched and all neutral reason categories, retain decoded
-packet-selection assertions, correlate tags and exclude private keys, encrypted
-tokens, names/profile IDs, revisions, command and preference text from logs. The
-paired codec copies match byte-for-byte, with no wire-format/key change. The
-paired Codex checkout passed 701 fast tests and 244 native HA contracts each on
-2026.6.0 and 2026.10.0, plus Ruff. These are synthetic/local results, not new CI,
-container-build, model-obedience or physical-device evidence.
-
-The changes are development-only. No live logger settings, thresholds, accounts,
-instructions, pipeline, app installation or Core state were changed. Diagnostics
-need separately approved deployment and a new utterance before they can explain
-the reported live symptom. See [the diagnostic guide](PERSONALIZATION.md#request-diagnostics-development-not-deployed).
-
-## Experimental 0.3.0 personal preferences
-
-Local add-on checks: **63 passed, 4 engine tests skipped**. New coverage includes
-per-profile ownership, preference revision, encrypted/context-bound packets,
-neutral fallback, key rotation, admin-only pairing responses, no key in state,
-and the disabled-by-default separate endpoint. The two protocol source copies
-match in the local paired checkouts. These tests use synthetic speakers and
-keys, not biometric data or production credentials.
-
-The accompanying Codex 0.7.0 source passed Ruff and **688 fast tests** in an isolated
-Python 3.14 environment. A pre-existing AI Task test failure was reproduced on
-unmodified HEAD and, with explicit approval, fixed by supplying the fake entity's
-missing `entity_id`; production AI Task runtime was not changed. The new HA framework
-contract is written but unrun. Container builds, real pairing/Ingress, live
-two-person prompt selection and concurrent-device end-to-end checks remain pending.
-No commit, push, deployment or restart is implied by these local results.
-
-See [personalisation setup and boundaries](PERSONALIZATION.md). Before enabling:
-
-- Deploy compatible reviewed builds separately, with backup and restart consent.
-- Verify ordinary port 10350 still emits plain text with pairing off/on.
-- Verify 10352 is silent while disabled and only paired agents can consume it.
-- Enrol at least two consenting speakers; calibrate preference-only similarity
-  and gap thresholds, including uncertain/overlapping and wrong-speaker cases.
-- Test A → B → A within one HA conversation and on simultaneous devices; earlier
-  turns must not appear in the next speaker's model input.
-- Test copied, expired, changed and wrong-key packets; provider calls must not run.
-- Verify personal instructions are not evaluated as HA/Jinja templates, and
-  linked accounts never replace the original HA caller or tool permissions.
-- Confirm no key is in state/diagnostics/logs, no public port is enabled, and
-  ordinary agents, personalities, Piper and AI Task remain unchanged.
-
-## Earlier version evidence
-
-Version **0.2.1** fixes the user-reported frontend `reset is not a function` error.
-The new form-control regression failed against 0.2.0, then passed after renaming
-the conflicting Back button. Local suite: **52 tests passed, 3 engine tests skipped**;
-JavaScript syntax and diff checks passed. These are static/unit checks, not a
-browser execution test. Container build and confirmation on the user's phone remain
-pending. The fix does not alter existing ownership or biometric files.
-
-Version **0.1.0** built successfully in GitHub Checks at commit `cbbb28d`, including
-dependency and container contract checks. The user then installed it on HAOS and
-reported successful 30-sample enrolment, normal recognition, TV-only rejection
-and a question answered without TV dialogue being transcribed. These are initial
-user observations, not a measured accuracy/resource benchmark.
-
-Version **0.2.0** guided-management changes are **not yet deployed or verified on
-HAOS**. Local validation on 2026-11-04: **50 tests passed, 3 engine-contract tests
-skipped** (the upstream engine/runtime is not installed here). This includes
-ownership denial, role demotion, missing identity, Ingress peer validation, CSRF,
-legacy ownership migration, recording hard-link cleanup, validated voiceprint
-installation, failure preservation, guided recording/routing and stale-result
-suppression. Local HTTP and Wyoming tests use loopback, stubbed identities and
-inference, never a production token or real recording.
-
-Local test dependencies are in an isolated cache, not installed into Home
-Assistant or the app. Python 3.13 tests used NumPy 2.2.6; the image/CI use Python
-3.11 and NumPy 1.26.4. JavaScript syntax checks passed. Actual browser/mobile
-rendering, real Ingress headers, Core role lookup and the new container build
-remain pending. No browser automation or Docker is available here. Do not close
-issue #1 based solely on these tests.
-
-Run dependency-light checks from the repository root:
+From the repository root, in a disposable development environment:
 
 ```sh
-python3 -m unittest discover -s tests -v
+python -m unittest discover -s tests -v
+node --check voice_match/rootfs/opt/voice_match/static/app.js
+node tests/frontend_management.cjs
+node tests/frontend_learning_pairing.cjs
+python tests/management_browser.py --output /path/to/private-test-output
 git diff --check
 ```
 
-Install `wyoming==1.8.0`, `aiohttp==3.13.2` and `numpy==1.26.4` in a disposable
-Python 3.11 development environment for protocol/UI tests. Missing optional
-dependencies cause explicit skips. Tests use stubbed inference, not the actual
-SpeechBrain model. The browser JavaScript can be syntax-checked with:
+The protocol/UI suite needs Wyoming 1.8.0, aiohttp, NumPy and cryptography. Use the
+image's pinned Python/dependencies for container parity. Missing dependencies cause
+explicit skips; report them, not success. The browser runner also needs Chromium;
+it connects only to synthetic loopback state, not HA.
 
-```sh
-node --check voice_match/rootfs/opt/voice_match/static/app.js
-```
-
-On a development machine with Docker (not via HA's internal Docker socket):
+On a separate Docker development host:
 
 ```sh
 docker build -t voice-match-ha:dev voice_match
 docker run --rm --entrypoint python voice-match-ha:dev -m pip check
 ```
 
-Before publishing, run the HA app/add-on manifest linter and a container security
-scanner. The GitHub workflow builds amd64 and runs tests but does not publish an
-image. Review its results after an explicitly approved push. Local YAML parsing
-does not prove Supervisor manifest acceptance.
+Run the manifest linter and a container security scanner before publication. CI
+builds/tests amd64 but does not publish an image. Four upstream-handler contracts
+require the built image; local outside-image skips do not replace those checks.
 
-## Required manual HAOS/Android tests — repeat for 0.2.0
+## Coverage
 
-Use a separate pipeline and a consenting adult, not production security actions.
-Record hardware, versions, settings and measured results rather than claiming
-generic speaker accuracy. Never post actual samples/voiceprints in public issues.
+- Management: current version/link contracts, own-profile creation, CSRF/current
+  role, one-profile uniqueness, concurrent/lost responses, admin separation and
+  account changes. Production-JS fixtures cover confirmation, no automatic mutation
+  retries, pairing key expiry/access loss and clipboard fallback.
+- UI: three collapsed admin panels, direct setup guidance, setup shortcut, invalid
+  advanced-input reveal/focus, mobile/desktop/narrow dark-mode layout and overflow.
+- Learning: encrypted bridge, wrong keys/tamper/TTL/replay/generation/capacity,
+  current ownership, exact source/session/turn permits, pause/resume/discard,
+  count progression, validated replacement, cleanup and failure preservation.
+- Phone companion: native HA authentication/pipeline tests cover login continuity,
+  revoked/expired accounts, different logins, reconnect, interrupted capture,
+  control exclusion, streaming endpointing and unclaimed-clip cleanup. The combined
+  integration's suite covers its current runtime, reminder and final completion wait.
+- Recognition: independent identity assessment, same-window margins, tie/conflict
+  neutrality, malformed/incomplete scores, cooperative budget, exact forwarded PCM,
+  unchanged acoustic thresholds and no early-filter identity fallback.
+- Personalisation: authenticated utterance-bound context, neutral uncertain matches,
+  optional names/instructions and privacy-safe diagnostics.
 
-| Scenario | Record / expected observation |
+The latest runtime-source local validation recorded **231 passed / 4 built-image
+skips**. Synthetic Chromium checks passed at mobile/desktop sizes and 320-pixel
+dark mode. These are source-test results, not a complete public-beta acceptance run.
+
+## Current real-device acceptance boundary
+
+The tester confirmed the rebuilt three-section admin page and ordinary direct
+Voice Match assistant operation. Existing-profile native Android launch, short
+notice and timely pause/resume have narrow phone acceptance. None establishes
+multi-speaker accuracy or a complete replacement on the current combined path.
+
+Still verify **Privacy details**, cancellation at the verified resume prompt,
+fresh-account setup and **all 30 samples through validated replacement and cleanup**
+on the current combined integration. Do not substitute standalone-path results or
+synthetic completion tests for that acceptance.
+
+## Manual matrix
+
+Use a separate assistant and consenting test users. Recording, deletion, key
+rotation, deployment and restart require their own approval. Report hardware,
+component revisions, settings, timing and failures without private names, audio,
+keys or addresses.
+
+| Scenario | Required observation |
 | --- | --- |
-| Fresh store install | Manifest accepted; CPU build resolves dependencies |
-| Empty enrolment | No transcription; management/setup page stays available |
-| Model first download | Time/disk use; understandable failure/retry when offline |
-| Record 30 samples | Progress, no command execution; model/voiceprint generated |
-| Restart during/after enrolment | Capture paused; explicit consent to resume; completed session does not repeat |
-| Quiet/normal/distant speech | False rejects and latency with 1s, 3s and longer clips |
-| TV alone | False accepts/transcripts over repeated tests |
-| Speaker plus TV / overlap | Residual TV words, lost speaker words; no guaranteed separation |
-| Unknown speaker | False accepts, especially immediately after an accepted clip |
-| Companion Android tap-to-talk | Correct pipeline; supported format; manual vs VAD stop; listening duration |
-| Satellite | Same microphone enrolment; end-of-speech; no duplicate transcripts |
-| Whisper down / hangs | No bypass; bounded forward timeout; recovery on next request |
-| Long/malformed stream | Recording rejected/capped, no saved unconsented samples |
-| Restart/backup/restore | Voiceprints/cache persist; recovery offline; backup privacy |
-| Re-enrol with new session | Existing voiceprint replaced only after successful processing |
-| Resource use | Idle/startup/inference CPU/RAM/disk alongside Core and Whisper |
-| Rollback | Original STT works after selecting it and stopping the proxy |
-| Real Ingress and sidebar | Admin/non-admin can navigate; missing headers denied; no public web port |
-| HA role checks | Owner/admin correctly identified; inactive/system users denied; Core unavailable fails closed |
-| Multiple HA accounts | Ordinary users cannot see, replace, delete or claim each other's/legacy voices |
-| Legacy migration | Original voice still matches; administrator explicitly assigns ownership; no automatic cleanup |
-| Successful wizard session | Samples and temporary hard links removed, voiceprint retained; no manual restart |
-| Pause/error/timeout | No unconsented recording after pause/restart; partial samples explicitly resumable/deletable |
-| Delete and re-enrol | Confirmation, no stale cached recognition, other profiles/models/backups untouched |
-| Real phones and desktops | Layout, accessible progress, consent, focus and relative Ingress URLs work |
+| Fresh amd64 HAOS app/integration install | Build, dependencies, correct assets, restart and verified pairing |
+| Codex-only / learning-only / both | Independent configuration and lifecycle; no unwanted OAuth or defaults |
+| Empty enrolment / first model download | No unchecked transcription; useful failure/recovery and measured resources |
+| Fresh account | Own metadata creation, no recording before separate spoken consent |
+| 30 varied phrases | Saved-count progress, rejected retry, no control/TTS audio saved |
+| Pause/resume | Retained samples; verified preview and separate confirmation; new scope needs consent |
+| Privacy details / resume cancellation | Explanation without saving; bound unfinished-session discard, old print retained |
+| Final generation | Validated replacement before cleanup; failure retains print/samples; bounded status wait |
+| Reconnect / interruption / expiry | No inherited permit, silent restart or blind mutation retry |
+| Quiet/normal/distant/short speech | False rejects and measured latency across microphones |
+| TV / unknown / overlapping speakers | False accepts, residual dialogue and lost words over repeated trials |
+| Multiple enrolled people/devices | Correct names/preferences, neutral ambiguity, isolated simultaneous context |
+| Whisper/bridge outage | No bypass, bounded failure, explicit recovery |
+| Restart / backup / restore / offline | No restored recording consent; protected biometric data and verified rollback |
+| Roles / ownership / deletion | No cross-account access; confirmation; no other profile/model/backup loss |
+| Real Ingress / Companion accessibility | Ordinary/admin layout, focus, labels and manual launch fallback |
+| CPU/RAM/disk | Startup, collection, generation and concurrent inference alongside HA/Whisper |
 
-The listening/VAD boundary is before this proxy. Suppression in the final transcript
-does not establish that Android will stop listening sooner. Published results must
-distinguish those outcomes. Stage 2 identity-based personalisation is out of scope.
+VAD/listening happens before this proxy; a clean transcript does not mean the phone
+stops sooner. No production satellite learning adapter ships. Recognition remains
+a preference hint, never security authority. See the combined integration's
+[candidate-specific beta checklist](https://github.com/DaFern/ha-codex-multi-assist/blob/main/docs/BETA_ACCEPTANCE.md).

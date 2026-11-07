@@ -48,7 +48,7 @@ class DistributionDocsTests(unittest.TestCase):
         standalone = (ROOT / "docs/ENROLLMENT_COMPANION.md").read_text()
         self.assertIn(GUIDE, standalone)
         self.assertIn("Voice Match Enrolment (Prototype)", standalone)
-        self.assertIn("Earlier implementation-stage notes (superseded deployment status)", standalone)
+        self.assertIn("# Voice Learning setup and bridge protocol", standalone)
         self.assertNotIn("Neither is installed or active in this home", standalone)
         self.assertIn("separately approved cutover", standalone)
 

@@ -20,7 +20,7 @@ ARM/Jetson recipes upstream are **not proof of generic ARM HAOS compatibility**.
 Wheel availability, instruction support, dependency resolution and real CPU
 performance must be checked on aarch64 before adding it to `arch`. GPU/Jetson is
 not supported by this wrapper. Memory/latency figures in upstream's README are
-upstream measurements, not demonstrated results on Daniel's hardware.
+upstream measurements, not demonstrated results on the test installation.
 
 Local adapters (separate from fetched upstream source):
 
@@ -47,7 +47,7 @@ Local adapters (separate from fetched upstream source):
   `(192,)` finite nonzero voiceprints, and narrowly scoped recording cleanup that
   unlinks both temporary hard links without touching the retained voiceprint.
 
-Version 0.2.0 requests `homeassistant_api: true` for user/role lookup. This is a
+The app requests `homeassistant_api: true` for user/role lookup. This is a
 broad administrator credential even though the code uses only a read command.
 It is used solely in the management process, never returned to clients, and is
 removed from worker/enrolment subprocess environments. No host folders, Docker API,
@@ -71,9 +71,12 @@ tag, Debian packages and runtime model downloads also change. No claim of bit-fo
 bit reproducibility or vulnerability-free dependencies is made. Run image/dependency
 scanning before publishing; do not silently float to a new engine release.
 
-Version 0.3.0 adds optional per-person response preferences via a paired Codex
-connector; see [PERSONALIZATION.md](PERSONALIZATION.md). The per-connection
-`VerificationTap` captures upstream results into private loopback metadata. The
+Optional names and per-person response preferences use a paired Codex connector;
+see [PERSONALIZATION.md](PERSONALIZATION.md). The personalised endpoint requests
+an independent identity assessment on the exact PCM sent to Whisper, retaining
+same-window scores/margins and failing neutral on incomplete/conflicting results.
+It does not reuse the filter's first passing score. Request-local worker metadata
+stays private; acoustic acceptance and extraction thresholds are unchanged. The
 outer ordinary endpoint still strips that metadata and upstream `[speaker]`
 transcript tagging stays off. Only the opt-in endpoint carries an authenticated,
 encrypted, utterance-bound header. No shared last-speaker state or bare name is

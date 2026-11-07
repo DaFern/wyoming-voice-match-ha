@@ -1,10 +1,11 @@
-# Personal response preferences — experimental 0.3.0
+# Voice Match recognition and optional response preferences
 
-Requires the matching **Codex Multi-Assist 0.7.0** connector. Both implementations
-must pass their build/contract checks and be deployed separately before this is
-enabled. This feature is disabled by default. Normal STT port **10350** stays plain
-and unchanged. Personalised port **10352** is internal-only by default and returns
-no transcript until an administrator pairs/enables it.
+Requires the matching **Codex Multi Assist 0.7.0** integration and **Voice Match
+0.4.7** app; record exact source revisions as well as versions. The app's paired
+endpoint is opt-in. Normal STT port **10350** stays plain. Personalised port
+**10352** is internal-only and returns no transcript until an administrator enables
+it. The integration connects directly and exposes one everyday **Voice Match** STT
+choice. **Voice Learning** is separate.
 
 ## What this changes
 
@@ -24,7 +25,7 @@ grant permissions or make a speaker an authenticated HA user. Disabling/deleting
 a HA account does not itself erase its acoustic profile or preferences; an
 administrator must remove the profile when appropriate.
 
-### Recognised names (development, not deployed)
+### Recognised names
 
 The sender now also includes the matched, assigned profile's display name as an
 optional encrypted `speaker_name` field. The matching Codex update gives the agent
@@ -34,18 +35,15 @@ login. The label is shared with the selected model provider, quoted as name data
 and must not be treated as authentication or permission. Neutral/unassigned
 matches carry no name, and diagnostic logs do not include it.
 
-This additive version-1 field needs both reviewed updates for name-aware replies.
-Older packets without names remain valid; older receivers ignore the extra field.
-No key rotation or re-enrolment is needed just to add it. Names are bounded to 80
-printable characters independently of the existing 2000-character preference
-limit. This checkout does not deploy either update, and name context does not
-remove the encrypted header from an existing stock-Wyoming Assist chat bubble.
+Names are bounded to 80 printable characters independently of the 2000-character
+preference limit. Personal instructions are optional. The direct Codex adapter
+keeps chat text clean; a stock personalised-Wyoming pipeline still displays the
+encrypted header. Recognition does not change the authenticated HA caller.
 
-## Setup after both updates have been approved and tested
+## Setup
 
-1. Back up both components. Install the reviewed integration and restart Core with
-   explicit approval; install/update the add-on separately. Do not overwrite a
-   working integration or restart Core merely to follow this document.
+1. Install compatible reviewed components with backups and explicit approval.
+   Integration Python updates require a Core restart; app updates are separate.
 2. Confirm each existing voice is assigned to the correct HA account. Each person
    can open **Personal instructions** and save their preferences. No re-enrolment
    is required just to add instructions.
@@ -55,20 +53,19 @@ remove the encrypted header from an existing stock-Wyoming Assist chat bubble.
    the personalised endpoint; update or disable the Codex pairing too when
    revoking a key, because a receiver retaining the old key could still accept
    already-issued unexpired packets.
-4. In Codex Multi-Assist **Configure → Voice Match personal preferences**, enable
-   preferences and paste the key into the password field. A blank field preserves
-   an already saved key; disabling the option removes it. Diagnostics redact it.
+4. On the Codex entry open **Configure → Voice Match**. Enable it and enter the
+   app's internal hostname, port **10352** and personalisation key. A blank key
+   preserves an existing one; disabling removes it. Diagnostics redact it.
 5. Enable the personalised endpoint in the add-on. Initial conservative thresholds
    are similarity **0.50** and a **0.10** gap from the next enrolled voice. These
    are uncalibrated starting points, not probabilities or accuracy guarantees.
-   They select preferences only; they do not lower normal voice-filter thresholds.
-6. Add a **second Wyoming Protocol integration** with the same app hostname and
-   port **10352**. It advertises `voice-match-personal`. Keep the original port
-   10350 integration and working pipeline as a fallback.
-7. Create a separate test pipeline using that personalised STT entity and the
-   paired Codex agent. Disable **Prefer handling commands locally**, if offered:
-   the encrypted request header must reach the paired agent unchanged. Do not use
-   this STT endpoint with an unpaired agent or an ordinary intent-only assistant.
+   They select recognition context and preferences, not normal filtering thresholds.
+6. Save the connection. No separate Wyoming Protocol STT integration is needed.
+   Setup checks service metadata, not actual key pairing; incoming packets are
+   independently verified on each turn.
+7. Use **Voice Match** STT with a Codex agent from that same entry and usual TTS
+   in an approved test assistant. Disable local-first handling if offered and avoid
+   native sentence-trigger conflicts. Keep ordinary Whisper available as fallback.
 8. Test one person's brief-answer preference, a second person's different preference,
    switches in the same conversation, and accepted-but-uncertain speech. Repeat
    with two devices concurrently before everyday use.
@@ -78,7 +75,7 @@ non-personalised path. No additional HA API or public HTTP endpoint is introduce
 
 ## Transport and context boundaries
 
-### Independent identity scoring (0.4.7; real-device acceptance pending)
+### Independent identity scoring
 
 The pinned upstream verifier can return as soon as a segment passes its speech
 filter threshold (normally 0.30). Reusing that early score for the stricter
@@ -103,21 +100,20 @@ speech is never rescored or sent to Whisper. Normal STT does not request the
 extra assessment. The existing connector still applies its current similarity,
 margin and profile-ownership checks; a returned score is not an accepted identity.
 
-Input remains capped at 60 seconds. Additional scoring runs off the event loop,
+Input is capped at 60 seconds. Additional scoring runs off the event loop,
 with at most 64 chunks and a **five-second cooperative time budget** checked
 between/after inference calls. This cannot forcibly interrupt one slow Torch call.
 Errors, exhaustion, malformed scores or incomplete competing-speaker vectors
 discard the whole assessment, never use partial results or retry audio, and leave
 personalisation neutral. Extra inference can increase latency; real CPU/phone
-timing and recognition accuracy still need deployment acceptance testing.
+timing and multi-speaker recognition accuracy still need measured acceptance.
 
 An internal per-request worker response marker distinguishes the new assessment
 from old early-filter metadata. A missing/unknown marker cannot fall back to that
 older identity result. This changes only the private loopback extension; encrypted
 Codex packets and pairing remain unchanged. No audio, names or score vectors are
 added to public events or diagnostic logs, and ordinary Assist audio is never
-saved as learning data. No live threshold, installed voiceprint or pipeline was
-changed while preparing this code; no recognition improvement is yet claimed.
+saved as learning data. This is not a measured recognition-accuracy guarantee.
 
 The private inference worker adds its **per-connection** matched speaker, similarity
 and gap to an internal Wyoming event. The outer gateway never uses a shared
@@ -163,7 +159,7 @@ impersonation remain possible. Do not conduct confidential conversations on shar
 speakers or permit voice identity to authorise locks, alarms, purchases or other
 sensitive actions. Keep those behind genuine HA authentication/confirmation.
 
-## Request diagnostics (development, not deployed)
+## Request diagnostics
 
 Minimal INFO-level logs correlate the add-on's decision with the paired Codex
 receiver and prompt composition. A 16-character `request` tag is a SHA-256 prefix
@@ -193,19 +189,17 @@ revisions, instruction text, transcripts and model/base prompts. They still reve
 request timing/outcomes and correlate activity, so protect logs and observe normal
 HA retention. These records are diagnostics only, never automation speaker state.
 
-After separate update/deployment/restart approval, request one fresh utterance
-and compare its tag across both logs. Historical requests cannot be reconstructed.
+For an approved diagnostic test, request one fresh utterance and compare its tag
+across both logs. Prior requests cannot be reconstructed.
 The add-on already admits INFO logs. HA must also admit INFO for
 `custom_components.codex_assist.conversation` and
 `custom_components.codex_assist.voice_match`; use a separately approved targeted
-runtime logging-level change if necessary, not blanket debug logging. No logger
-levels, live settings, thresholds, ownership, preferences or audio acceptance were
-changed while implementing this extension in development checkouts.
+runtime logging-level change if necessary, not blanket debug logging.
 
 ## Rollback
 
-Switch the test pipeline back to port 10350/original Whisper STT. Disable preferences
-in Codex options and disable the personalised endpoint in the add-on. Existing
+Switch the test pipeline back to port 10350/original Whisper STT. Disable Voice
+Match in Codex options and disable the personalised endpoint in the add-on. Existing
 profiles and normal filtering continue working; no recording deletion or new voice
 enrolment is needed. Restoring an older integration version requires its own
 approved deployment and Core restart. Speaker-based agent routing and guest mode

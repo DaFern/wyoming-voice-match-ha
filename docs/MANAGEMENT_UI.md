@@ -1,149 +1,82 @@
-# Own-account management UI — issue #3 development
+# Manage voices
 
-## Administrator layout refresh (development follow-up)
+The authenticated Ingress page separates everyday voice management from
+administrator setup. Open **Wyoming Voice Match → Open Web UI**, or use its sidebar
+entry. Voice matching is not authentication.
 
-Administrator settings now opens to three collapsed panels: **Saved voices**,
-**Voice Match connection** and **Voice Learning connection**. The everyday profile,
-learning guide, personal-instructions form and privacy section remain unchanged.
+## Your voice
 
-The Voice Match instructions use the current direct Codex connection: Configure
-→ Voice Match, this add-on's internal hostname, port 10352 and personalisation key.
-No extra Wyoming source is needed with the matching integration. Personal
-instructions are optional. Already configured users are told to retain their key.
-Recognition similarity/margin controls live under **Recognition checks (advanced)**;
-invalid controls automatically open that panel without submitting a request.
+- **Add my voice** creates a display-name profile for the actual signed-in account.
+  It does not record audio, grant consent or select another account.
+- **Learn my voice**, **Learn my voice again** and **Resume learning** guide the
+  owner into the separate Voice Learning assistant. With matching integration and
+  Companion support, the button requests native Assist with that assistant selected.
+  Manual selection remains the fallback; dispatch is not proof that Assist opened.
+- A new conversation requires the spoken notice and separate **Start learning**.
+  A verified paused conversation previews the saved count and requires a separate
+  **Continue learning**. Clicking a page button never grants recording consent.
+- **Voice ready** describes an installed voiceprint. **Saved recordings: none**
+  describes raw-data cleanup, not the absence of a usable voice.
+- **Personal instructions** are optional literal response preferences, not
+  templates or permissions. They are shared with the selected Codex provider when used.
+- **Delete saved data** contains confirmed destructive controls. Deleting recordings
+  can retain the installed voiceprint; deleting the voice removes both. Neither
+  securely erases disk blocks nor removes old backups.
 
-Voice Learning has four short setup steps for the learning entry, internal HTTP
-address on port 8099, ordinary Whisper and separate learning assistant. Key safety,
-recording/privacy and installation/compatibility notes are expandable. Standalone
-companion instructions and the unpublished-beta warning remain in compatibility
-help rather than dominating the main setup. The administrator shortcut opens both
-the outer settings and the nested learning panel before scrolling.
+Each person uses their own signed-in phone and uniquely assigned profile, including
+administrators. Another person's administrator card cannot learn from the admin's
+microphone on their behalf. Normal Assist traffic never becomes training data.
 
-Element IDs, explicit action payloads, confirmation dialogs, permissions, busy
-guards, no-retry behaviour and key-clearing rules are retained. This does not
-change pairing, thresholds, enrolment consent, stored voices or backend code.
-It is source-only: no version bump, commit/push, add-on rebuild or deployment is
-included in this preparation step. The historical stages below retain their
-original status and validation results.
+## Administrator settings
 
-This is an uncommitted development follow-up to deployed 0.4.3. No release bump,
-publication, live UI deployment, recording, deletion or restart is included.
+Three sections start collapsed:
 
-## Everyday flow
+1. **Saved voices:** manage profiles, account assignment and saved data.
+2. **Voice Match connection:** configure the everyday direct Codex connection on
+   internal port **10352** with its personalisation key. Personal instructions are
+   optional; no extra Wyoming STT integration is needed. Existing connections should
+   retain their key. Similarity/margin controls are under **Recognition checks
+   (advanced)**; invalid inputs reveal that panel for correction without saving.
+3. **Voice Learning connection:** create/replace the separate learning key, enter
+   the internal HTTP origin on **8099** in **Codex Assist → Voice Match learning**,
+   explicitly enable phone learning with ordinary Whisper, and manually create a
+   dedicated assistant using both learning entities and usual TTS.
 
-- **Your voice** shows only the signed-in person's own profile, even for an
-  administrator who can manage other people's profiles below.
-- **Add my voice** opens a short display-name form. **Create my voice profile**
-  creates metadata for the actual signed-in account, not a recording session.
-  There is no account selector or recording-consent checkbox on that form.
-- **Learn my voice**, **Learn my voice again**, or **Resume learning** opens
-  plain-language steps for the separate phone learning assistant. A new/fresh
-  conversation needs its spoken notice and separate **Start learning**. A retained
-  paused conversation may offer the verified-count prompt and separate **Continue
-  learning** confirmation from issue #2. The page never grants that consent.
-- **Voice ready** describes the installed voiceprint. **Saved recordings: none**
-  describes cleanup/storage, not the absence of a usable voiceprint. Unfinished
-  learning is labelled separately; active saved-count progress remains visible.
-- Destructive controls live under **Delete saved data**, with the existing
-  confirmation and installed-voiceprint/backup distinctions preserved.
-- Privacy has a brief visible summary and expandable recording, processing,
-  deletion and backup details. Personal instructions remain literal preferences,
-  not permissions or templates.
-- **Administrator settings** contains account assignment, all-profile management,
-  pairing and technical setup. Other people's cards never offer phone learning
-  from the administrator's signed-in microphone. Existing management permissions
-  remain in force.
+The setup shortcut opens the nested learning section. Key safety, privacy and
+compatibility explanations are expandable. A configured key is not proof of a
+connected integration, assembled assistant or working microphone. The integration's
+**Check setup** provides technical checks; a complete administrator onboarding
+wizard remains [issue #4](https://github.com/DaFern/wyoming-voice-match-ha/issues/4).
 
-## Truthful setup and handoff limits
+Learning keys clear from the page after two minutes or when hidden/access is lost.
+They cannot be read back later. Clear the clipboard after setup. Replacement and
+disable actions require administrator confirmation and no active learning.
 
-This is the approved **guided-instructions fallback**, not a seamless launcher.
-The user must open Assist and choose their learning assistant. The existing
-launch-contract prototype remains unwired. No Android intent, guessed deep link,
-parent-frame DOM access or global-default assistant change was introduced.
+## Account and recovery safeguards
 
-The server exposes only `learning_setup.paired` to ordinary users: learning-key
-presence, not the key or administrator settings. Even when true it does **not**
-prove the companion is enabled, the assistant exists, the installed client can
-launch it, or the microphone works. The guide explicitly requires checking in
-Assist. Missing pairing yields an actionable ask-an-administrator message; admins
-can jump to their setup section. Automated capability discovery/onboarding remains
-issue #4 / future handoff work. Do not close issue #3 as seamless launch completed.
+Own-profile creation uses authenticated Ingress identity, CSRF and explicit
+confirmation. It rejects account/profile/source/session overrides, including from
+administrators, and rechecks current permissions under the runtime lock. It is
+blocked during active learning and enforces one profile per account and 50 profiles.
 
-## Backend and recovery safeguards
+Requests have a 20-second deadline and are not automatically retried after uncertain
+mutations. Creation recovery reads state rather than repeating the POST. If still
+unknown, **Check profile status** is read-only. Account changes and lost access clear
+old guidance, preferences and pairing values. Text is rendered as text, not HTML.
 
-The new management action accepts exactly:
+## Verification and remaining acceptance
 
-```json
-{"action": "create_own_profile", "name": "Display name", "confirm": true}
-```
+The three-section admin layout is confirmed working on the tester's rebuilt add-on.
+Existing-profile native Android launch is confirmed. These observations do not
+establish fresh-account learning or full replacement/cleanup on the combined path.
 
-It uses the authenticated Ingress actor and existing CSRF protection, validates
-that the account is active and non-system-generated, and rejects owner/profile/
-source/consent/session-token overrides, including from administrators. Creation
-runs under the existing runtime lock, is unavailable during active learning and
-retains the existing one-profile-per-account and 50-profile limits. It returns an
-ID only, never a learning capability or recording permit. A duplicate request
-cannot create a second own profile.
-
-The frontend bounds creation/read-back to 20 seconds, suppresses duplicate busy
-clicks and never automatically retries an uncertain mutation. A failed/lost reply
-leads to a fresh read, not another POST. If a profile is observed, the user is told
-it is linked without claiming which request created it. If still unverified,
-creation stays blocked for that account in the current page and offers a read-only
-**Check profile status** action. Definite validation/permission rejection permits
-correction. This is not a cross-reload durable request-receipt protocol; the
-backend uniqueness guard remains authoritative after reload.
-
-Account changes, lost access and profile removal clear old guidance/preferences;
-role loss hides administrator controls and pairing values. Text is rendered with
-DOM text properties, not HTML interpolation. Existing sample permits, source and
-turn bindings, pause/discard behaviour, thresholds, voiceprint installation,
-personalities, Piper and AI Task are unchanged.
-
-## Validation
-
-- Unit discovery: **202 run, 198 passed, 4 skipped**.
-- Native HA suite: **63 passed** (existing phone/authentication regressions).
-- New backend tests exercise actual runtime and HTTP creation: CSRF, actor changes,
-  owner spoofing, explicit confirmation, active/system-account denial, concurrent
-  duplicates, lock-time revalidation, metadata durability and no recording grants.
-- New production-JS fixture exercises own/admin states, profile creation, guided
-  steps, lost/late replies, malformed success, validation rejection, timeouts,
-  duplicate clicks, changed accounts and assignment/access loss. Existing guided
-  phrase and learning-pairing regression fixtures pass.
-- Real headless Chromium exercised synthetic loopback state at **390×844** and
-  **1280×900**, checked horizontal overflow, focus, creation, resume instructions,
-  missing setup, administrator separation and account changes. Screenshots were
-  visually inspected. These are not screenshots of the live add-on or proof of
-  real Android/Ingress handoff.
-
-Run the optional browser review with the isolated aiohttp test environment:
+Synthetic Chromium checks cover mobile/desktop and narrow dark-mode layout, focus,
+account separation, recovery and no mutation from viewing setup. Run:
 
 ```sh
-TMPDIR=/data/v2/cache/opencode \
-  /data/v2/cache/opencode/voice-diagnostics-tests/bin/python \
-  tests/management_browser.py \
-  --output /data/v2/cache/opencode/voice-match-issue3-ui-review
+python tests/management_browser.py --output /path/to/private-test-output
 ```
 
-Chromium is required. The review creates only temporary browser state, synthetic
-in-memory profiles and cache screenshots; it does not contact Home Assistant.
-
-## Pending real-phone acceptance after separate deployment approval
-
-1. Existing user: check **Voice ready**, saved-recording status and resume guidance
-   against actual state. Open the guide and manually choose the learning assistant
-   in Companion; confirm account-bound notice/consent and preserved saved progress.
-2. New consenting test account: create its own profile, confirm it is not recording,
-   then independently open the learning assistant and give spoken consent. Do not
-   create/assign profiles or start recordings on household users' behalf.
-3. Administrator: confirm technical sections are collapsed by default, account
-   assignment remains available and another person's card cannot initiate phone
-   learning for that person. Repeat with an ordinary signed-in account.
-4. Check missing setup, offline recovery, narrow-screen layout, keyboard focus and
-   screen-reader labels on the actual Companion app. Never interpret a page click
-   as proof that Assist opened or recording consent was granted.
-
-Any recording or destructive acceptance step still requires explicit agreement;
-development/browser validation alone does not authorise it.
+Use an isolated environment with aiohttp and Chromium. No HA credentials or real
+voice data are used. See [testing](TESTING.md) for remaining real-phone, fresh-account,
+accessibility, offline-recovery and complete 30-sample replacement checks.

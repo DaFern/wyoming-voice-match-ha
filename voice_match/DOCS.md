@@ -1,16 +1,16 @@
 # Installation and operation
 
 The add-on baseline is **0.4.7**; check the installed build rather than inferring
-it from these source docs. For the planned single combined integration, see
+it from these source docs. For the combined integration, see
 [Codex Multi Assist installation/beta policy](https://github.com/DaFern/ha-codex-multi-assist/blob/main/docs/INSTALLATION.md)
 and [acceptance/rollback gates](https://github.com/DaFern/ha-codex-multi-assist/blob/main/docs/BETA_ACCEPTANCE.md).
-It is development-only, not a released beta. The standalone instructions below
-remain available until replacement acceptance; do not run both learning clients.
+It is experimental, not a released combined beta. Do not run standalone and
+combined learning clients together.
 
-For the optional **0.3.0 personal response preferences** and paired Codex connector,
-see [Personalisation](../docs/PERSONALIZATION.md). Keep it disabled until both
-components are reviewed, tested and deployed. Existing filtering uses port 10350
-and does not require this feature.
+For everyday **Voice Match** with optional personal instructions, see
+[Personalisation](../docs/PERSONALIZATION.md). Configure the direct Codex connection
+on port 10352; no extra Wyoming STT integration is needed. Filtering without Codex
+uses port 10350 and does not require the paired feature.
 
 ## Before installing
 
@@ -38,7 +38,7 @@ other security-sensitive operations. Recorded/replayed voices can fool matching.
 4. Keep the host port disabled. The internal Wyoming service is unencrypted and
    unauthenticated; it must never be published to the internet. No host networking,
    Supervisor management permission or host folder mapping is used.
-5. Version 0.2.0 requests **Home Assistant Core API permission** for automatic
+5. The app requests **Home Assistant Core API permission** for automatic
    user/administrator checks. This grants broad Core access, although this app
    uses it only to read account roles. Approve the upgrade permission only if you
    trust this code. The credential is not sent to the browser or model processes.
@@ -48,22 +48,15 @@ other security-sensitive operations. Recorded/replayed voices can fool matching.
 
 ## Guided voice learning
 
-**Experimental learning:** the 0.4.5 baseline requires a separate,
+**Experimental learning:** recording requires a separate,
 authorised learning transport. Ordinary Assist traffic on 10350/10352 cannot
 become training audio; existing recognition continues during collection and
 generation. Activating a validated replacement still briefly reloads the worker.
 The management page does not capture training audio. A matching separately
-installed standalone companion provides dedicated learning entities and a native
-Android launcher; combined learning moves those into `codex_assist` in development.
+installed Codex Multi Assist integration provides dedicated learning entities and
+a native Android launcher through its independent **Voice Match learning** entry.
 Create the dedicated pipeline manually; no Echo/satellite learning driver ships.
 See [the protocol, safeguards and limits](../docs/ISOLATED_ENROLLMENT.md).
-
-**Historical warning:** **0.3.2** uses global training capture. Its learning
-mode can save another person's ordinary Voice Match request into the active
-profile. Hold off on re-enrolment; merely choosing a separate stock Assist
-pipeline does not establish the recording source. These development changes do
-not update an old installation automatically. The warning is not a statement
-that a current installation still runs 0.3.2.
 
 Guidance still uses 30 varied phrases, about five seconds each, at normal
 microphone distance. Only saved samples advance the phrase; rejected audio keeps
@@ -78,13 +71,12 @@ Failures preserve available samples for retry. Keep other speakers/TV away from
 the learning microphone. Voice matching is not identity or permission to perform
 sensitive actions. No enrolled voice means no normal transcription.
 
-## Learning companion pairing controls (0.4.1)
+## Voice Learning connection
 
-Version 0.4.1 adds an administrator-only **Learning companion pairing**
-section, unavailable in 0.4.0. After updating, create/replace a learning key,
-confirm, and copy it into the separately installed **Voice Match Enrolment
-(Prototype)** integration together with the add-on's internal HTTP origin on port
-8099. This is not the Codex key or the browser's Ingress URL.
+In **Administrator settings → Voice Learning connection**, create/replace a
+learning key only when needed, confirm, and enter it in **Codex Assist → Voice
+Match learning** with the app's internal HTTP origin on port **8099**. This is not
+the personalisation key or the browser's Ingress URL. Learning needs no Codex account.
 
 Enable experimental phone learning in the integration options with ordinary
 Wyoming Whisper. Create a separate assistant selecting both learning STT and
@@ -96,12 +88,12 @@ the page is hidden, and cannot be retrieved later. Clear your clipboard after
 setup; never paste keys into chats. Replacing/disabling the learning key requires
 confirmation and no active learning session; it does not affect Codex pairing,
 normal matching or saved voices. See [the full pairing guide and experimental
-phone limits](../docs/ENROLLMENT_COMPANION.md#pairing-trust-and-protocol).
+phone limits](../docs/ENROLLMENT_COMPANION.md#bridge-trust-and-protocol).
 
 ## Existing voices, ownership and deletion
 
 Upgrading does **not** delete old recordings or change existing voiceprints.
-An administrator must explicitly assign a legacy voice (such as `daniel`) to its
+An administrator must explicitly assign an unassigned voice to its
 owner's HA account. We never infer ownership from a similar name or the first
 person opening the page. Normal users cannot view or claim unassigned voices.
 
@@ -164,8 +156,8 @@ and restore must be tested after the first successful download.
   races; it does not fix or shorten the microphone's VAD/listening session.
 - Android tap-to-talk's listening session can remain open with TV speech because
   capture/VAD happens before this STT proxy. Manually finish recording for testing.
-  The user reported successful initial Android enrolment and TV filtering on
-  version 0.1.0; the new guided workflow still requires real-device verification.
+   Full current combined learning and measured TV/overlap reliability remain
+   acceptance work; ordinary assistant success is not an accuracy benchmark.
 - Extraction is region-based filtering, not guaranteed source separation. Upstream
   may return full audio if no regions are retained, and clips of three seconds or
   less skip extraction. Overlapping TV speech can remain even after verification.
