@@ -69,8 +69,11 @@ intent preference is disabled. The intercepted clip must not train.
 Native tests exercise authenticated WebSocket pipelines and real Wyoming protocol
 with synthetic PCM/peer replies, plus encrypted bridge tests with stubbed inference.
 They do not establish acoustic quality, TTS echo exclusion or all Companion behaviour.
-Short notice and timely pause/resume have real-phone acceptance; the current combined
-full replacement, privacy-details and resume-cancellation checks remain open.
+The owner reports the current combined phone journey passed privacy details,
+pause/resume, resume-prompt cancellation, full 30-sample replacement/cleanup and
+everyday Voice Match afterwards. This does not establish fresh accounts, other
+devices/speakers, fault injection, expired/revoked scopes or clean-install/rollback
+acceptance.
 
 No production Echo/satellite adapter, accountless admission, automatic assistant
 creation or restoration of the previous assistant is supplied. Select the regular

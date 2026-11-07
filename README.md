@@ -18,8 +18,8 @@ guarantee TV/background removal, authenticate people or fix phone end-of-speech 
 Learning needs no Codex account. Codex works without Voice Match. The app remains
 separate from HACS and cannot install integration Python or create Assist pipelines.
 Use the fork's [custom HACS installation guide](https://github.com/DaFern/ha-codex-multi-assist/blob/main/docs/INSTALLATION.md),
-not upstream Codex. **No combined public beta is published.** Full clean-install,
-real-phone learning and rollback [acceptance gates](https://github.com/DaFern/ha-codex-multi-assist/blob/main/docs/BETA_ACCEPTANCE.md)
+not upstream Codex. **No combined public beta is published.** Clean-install,
+fault-recovery, rollback and release-candidate [acceptance gates](https://github.com/DaFern/ha-codex-multi-assist/blob/main/docs/BETA_ACCEPTANCE.md)
 remain open. Do not run standalone and combined learning integrations together.
 
 ## Install the app
@@ -78,11 +78,12 @@ learning launch, optional personal instructions and confirmed data deletion.
 Administrators have three collapsed sections: **Saved voices**, **Voice Match
 connection** and **Voice Learning connection**, with technical help expandable.
 
-The tester has confirmed the rebuilt admin UI and ordinary direct-connected
-assistant operation. This is not multi-speaker accuracy or complete combined
-30-sample replacement acceptance. Short notice and timely pause/resume have narrow
-phone acceptance; privacy details, resume-prompt cancellation, fresh-account setup,
-cleanup/recovery and broader acoustic/device tests remain outstanding.
+The tester confirms the rebuilt admin UI and current combined phone flow:
+**Privacy details**, pause/resume, cancellation at the resume prompt, all **30
+samples through replacement and recording cleanup**, and everyday Voice Match
+afterwards. This is owner-reported acceptance on the current installation, not a
+multi-speaker benchmark or release-candidate qualification. Fresh-account setup,
+clean installs, fault recovery/rollback and broader acoustic/device tests remain open.
 
 Quiet/overlapping/unknown speakers, TV, playback echo, CPU latency and phone VAD need
 continued testing. Voiceprints/recordings are biometric data: obtain consent,

@@ -156,8 +156,8 @@ and restore must be tested after the first successful download.
   races; it does not fix or shorten the microphone's VAD/listening session.
 - Android tap-to-talk's listening session can remain open with TV speech because
   capture/VAD happens before this STT proxy. Manually finish recording for testing.
-   Full current combined learning and measured TV/overlap reliability remain
-   acceptance work; ordinary assistant success is not an accuracy benchmark.
+  The owner reports current combined 30-sample replacement/cleanup and everyday
+  use afterwards passed; this is not a measured TV/overlap accuracy benchmark.
 - Extraction is region-based filtering, not guaranteed source separation. Upstream
   may return full audio if no regions are retained, and clips of three seconds or
   less skip extraction. Overlapping TV speech can remain even after verification.

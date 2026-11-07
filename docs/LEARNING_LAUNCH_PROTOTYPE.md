@@ -33,5 +33,6 @@ prove native-client support. The installed launcher and authenticated discovery 
 tested separately with native HA and production-JS fixtures.
 
 No launch is biometric consent. No automatic restoration of the previously selected
-assistant is supplied; choose the regular assistant manually afterwards. Full current
-combined learning, new-account setup and wider device acceptance remain open.
+assistant is supplied; choose the regular assistant manually afterwards. The owner
+reports current combined 30-sample replacement/cleanup and everyday use afterwards
+passed. New-account setup, wider devices, fault recovery and rollback remain open.

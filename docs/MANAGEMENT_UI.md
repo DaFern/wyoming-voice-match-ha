@@ -67,8 +67,10 @@ old guidance, preferences and pairing values. Text is rendered as text, not HTML
 ## Verification and remaining acceptance
 
 The three-section admin layout is confirmed working on the tester's rebuilt add-on.
-Existing-profile native Android launch is confirmed. These observations do not
-establish fresh-account learning or full replacement/cleanup on the combined path.
+Existing-profile native Android launch is confirmed. The owner also reports the
+current combined phone flow passed privacy details, pause/resume, cancellation at
+the resume prompt, 30-sample replacement/cleanup and everyday use afterwards.
+Fresh-account learning, broader account/device tests and fault recovery remain open.
 
 Synthetic Chromium checks cover mobile/desktop and narrow dark-mode layout, focus,
 account separation, recovery and no mutation from viewing setup. Run:
@@ -78,5 +80,5 @@ python tests/management_browser.py --output /path/to/private-test-output
 ```
 
 Use an isolated environment with aiohttp and Chromium. No HA credentials or real
-voice data are used. See [testing](TESTING.md) for remaining real-phone, fresh-account,
-accessibility, offline-recovery and complete 30-sample replacement checks.
+voice data are used. See [testing](TESTING.md) for remaining fresh-account,
+accessibility, offline-recovery, multi-speaker and release-candidate checks.

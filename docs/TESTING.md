@@ -60,15 +60,20 @@ dark mode. These are source-test results, not a complete public-beta acceptance 
 
 ## Current real-device acceptance boundary
 
-The tester confirmed the rebuilt three-section admin page and ordinary direct
-Voice Match assistant operation. Existing-profile native Android launch, short
-notice and timely pause/resume have narrow phone acceptance. None establishes
-multi-speaker accuracy or a complete replacement on the current combined path.
+The tester confirms the rebuilt three-section admin page, existing-profile native
+Android launch and the current combined phone journey:
 
-Still verify **Privacy details**, cancellation at the verified resume prompt,
-fresh-account setup and **all 30 samples through validated replacement and cleanup**
-on the current combined integration. Do not substitute standalone-path results or
-synthetic completion tests for that acceptance.
+- [x] Privacy details.
+- [x] Pause/resume.
+- [x] Cancel voice learning at the resume prompt.
+- [x] All 30 samples through successful replacement and recording cleanup.
+- [x] Everyday Voice Match works afterwards.
+
+This records the owner's report, not a new instrumented run or proof of every
+internal safeguard. Fresh-account setup, multi-speaker/device discrimination,
+changed/expired/revoked scopes, fault injection, clean installs and backup/rollback
+remain open. Repeat candidate-specific gates before publication; do not infer
+failure-path or general acoustic acceptance from this successful phone journey.
 
 ## Manual matrix
 

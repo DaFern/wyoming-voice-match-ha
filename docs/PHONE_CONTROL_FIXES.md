@@ -50,7 +50,10 @@ ownership/expiry/supersession, unrelated-file preservation, partial cleanup and
 uncertain-reply recovery. Native HA tests use synthetic speech/backend boundaries.
 They do not establish all Whisper transcription, endpointing or TTS echo behaviour.
 
-The longer cancellation phrase has controlled real-phone evidence; short notice
-and timely pause/resume are accepted narrowly. **Privacy details**, cancellation
-from the verified resume prompt and full current combined replacement/cleanup
-remain open. [Prompt/resume guide](PHONE_WORDING_RESUME.md) and [testing](TESTING.md).
+The owner confirms privacy details, pause/resume, cancellation at the resume prompt
+and full current combined 30-sample replacement/cleanup worked, with everyday
+Voice Match working afterwards. This does not establish every transcription, stale
+capability, failed/uncertain cleanup or device path. Those fault/security checks,
+fresh accounts, clean installs and rollback remain open. Shorter cancellation
+aliases are not assumed equally reliable. [Prompt/resume guide](PHONE_WORDING_RESUME.md)
+and [testing](TESTING.md).

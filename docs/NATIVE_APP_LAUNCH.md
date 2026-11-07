@@ -56,8 +56,10 @@ They do not open a real microphone or prove every Companion build.
 Repeat on the candidate phone: correct assistant opens, notice precedes consent,
 fresh-chat resume preserves samples only after consent, Back/reload does not relaunch,
 missing setup explains manual fallback and other accounts cannot borrow the flow.
-Fresh-account and complete combined replacement acceptance remain open. Test
-recording/deletion only with separate approval. [Testing](TESTING.md).
+The owner reports complete current combined 30-sample replacement/cleanup and
+everyday use afterwards passed. Fresh-account, broader device/account and
+fault-recovery acceptance remain open. Test recording/deletion only with separate
+approval. [Testing](TESTING.md).
 
 References: [HA external bus](https://contributors.home-assistant.io/frontend/reference/external-bus/),
 [custom panels](https://contributors.home-assistant.io/frontend/custom-ui/panel/)

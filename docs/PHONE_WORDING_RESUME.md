@@ -48,11 +48,13 @@ speech is not saved and may safely pause; it cannot grant consent or deletion.
   it does not begin or resume recording to get deletion authority. The installed
   voiceprint remains. Uncertain mutations are not blindly retried.
 
-## Acceptance still required
+## Current acceptance and remaining checks
 
-Short notice and timely pause/resume have been accepted on a real phone. That does
-not establish every reconnect, device or cancellation path. Specifically verify
-**Privacy details** and **Cancel voice learning** at the resume prompt, then complete
-the current combined 30-sample replacement/cleanup journey with explicit recording
-and test-session deletion consent. See [testing](TESTING.md) and
+Short notice and timely pause/resume have real-phone acceptance. The owner also
+confirms **Privacy details**, **Cancel voice learning** at the resume prompt and
+the current combined **30-sample replacement/cleanup** journey worked, followed by
+normal everyday Voice Match use. This records owner-reported current-installation
+acceptance, not an independently instrumented check of all internal protections.
+Changed/expired/revoked scope, interrupted capture, fresh accounts, other devices
+and fault recovery/rollback still need separate acceptance. See [testing](TESTING.md) and
 [issue #2](https://github.com/DaFern/wyoming-voice-match-ha/issues/2).

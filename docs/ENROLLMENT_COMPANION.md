@@ -91,7 +91,9 @@ Only an in-process simulated reserved speaker ships in tests. No production Echo
 adapter, accountless device admission or automatic pipeline switching is supplied.
 The phone path uses its separate authenticated native-turn handoff.
 
-Full current combined 30-sample replacement/cleanup, fresh-account setup, privacy
-details, resume-prompt cancellation, clean installs and rollback remain acceptance
-work. See [phone boundaries](PHONE_PIPELINE_FEASIBILITY.md), [testing](TESTING.md)
+The owner reports privacy details, pause/resume, resume-prompt cancellation and the
+full current combined 30-sample replacement/cleanup journey passed, with everyday
+Voice Match working afterwards. Fresh-account setup, multi-speaker/device coverage,
+fault recovery, clean installs and rollback remain open. This is current-installation
+acceptance, not a pinned beta qualification. See [phone boundaries](PHONE_PIPELINE_FEASIBILITY.md), [testing](TESTING.md)
 and the integration's [beta gates](https://github.com/DaFern/ha-codex-multi-assist/blob/main/docs/BETA_ACCEPTANCE.md).
