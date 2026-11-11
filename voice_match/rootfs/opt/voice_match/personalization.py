@@ -67,7 +67,8 @@ class Connector:
             instructions = profile.get("personal_instructions", "")
             wire = encode(self.config["key"], text, voice=voice_id,
                           revision=profile["context_version"], instructions=instructions,
-                          speaker_name=profile.get("name"))
+                          speaker_name=profile.get("name"),
+                          ha_user_id=profile["owner"])
             result, reason = "recognised", "matched"
         else:
             # Rejection still produces no text; uncertainty gets neutral context.

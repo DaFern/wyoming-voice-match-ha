@@ -64,6 +64,9 @@ class PersonalizationTests(unittest.TestCase):
         self.assertEqual(payload["instructions"], "Keep replies short")
         self.assertEqual(payload["voice"], self.voice)
         self.assertEqual(payload["speaker_name"], "Alice")
+        self.assertEqual(payload["v"], 2)
+        self.assertEqual(payload["ha_user_id"], "alice")
+        self.assertTrue(text.startswith("[[voice-match:v2:"))
         self.assertNotIn("Alice", text)
         with self.assertRaises(PacketError):
             decode(key, text[:-5] + "other")
@@ -87,6 +90,7 @@ class PersonalizationTests(unittest.TestCase):
         }, self.store.profiles)
         packet = decode(key, wire)[1]
         self.assertEqual(packet["speaker_name"], "Alice")
+        self.assertEqual(packet["ha_user_id"], "alice")
         self.assertEqual(packet["instructions"], "")
         self.store.profiles[self.voice]["owner"] = None
         neutral = decode(key, self.connector.wrap("hello", {
@@ -94,6 +98,7 @@ class PersonalizationTests(unittest.TestCase):
         }, self.store.profiles))[1]
         self.assertIsNone(neutral["voice"])
         self.assertNotIn("speaker_name", neutral)
+        self.assertNotIn("ha_user_id", neutral)
 
     def test_assignment_changes_clear_previous_persons_preferences(self):
         set_preferences(self.store, ALICE, self.voice, "Personal choice")

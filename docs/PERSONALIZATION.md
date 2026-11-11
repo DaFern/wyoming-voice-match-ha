@@ -32,13 +32,17 @@ optional encrypted `speaker_name` field. The matching Codex update gives the age
 explicit per-request recognition context even if personal instructions are empty.
 It uses the profile label, not a name inferred from presence or the current phone
 login. The label is shared with the selected model provider, quoted as name data,
-and must not be treated as authentication or permission. Neutral/unassigned
-matches carry no name, and diagnostic logs do not include it.
+and is not proof of identity. Neutral/unassigned matches carry no name, and
+diagnostic logs do not include it.
 
 Names are bounded to 80 printable characters independently of the 2000-character
 preference limit. Personal instructions are optional. The direct Codex adapter
 keeps chat text clean; a stock personalised-Wyoming pipeline still displays the
-encrypted header. Recognition does not change the authenticated HA caller.
+encrypted header. A recognised profile's administrator-assigned HA user ID is
+included only inside encrypted packet v2. It is a binding claim, not a login:
+Codex requires it to match the active authenticated HA caller and never replaces
+HA's request context. Missing/unassigned profiles use a neutral packet and cannot
+use voice-triggered HA controls or MCP tools.
 
 ## Setup
 
@@ -124,8 +128,10 @@ returns an empty transcript as before.
 
 HA's standard Wyoming STT strips extra metadata, so the opt-in endpoint carries
 context in a versioned **Fernet authenticated-encryption header** in the transcript.
-The encrypted payload includes a random nonce, profile/revision, instructions and
-a hash binding it to the exact utterance text. The command itself is still normal
+The encrypted v2 payload includes a random nonce, profile/revision, assigned HA
+user ID, instructions and a hash binding it to the exact utterance text. Legacy v1
+packets remain parseable but have no account binding and cannot authorize a
+recognized voice request. The command itself is still normal
 transcript text; the entire audio/control channel is not encrypted. A paired Codex
 connector verifies and removes the header before model/HA LLM-context preparation.
 An expiry, wrong key, altered command or replay fails closed with a short pairing
@@ -141,7 +147,9 @@ pairing key. Administrator access and local backups must remain protected.
 Already-issued preference snapshots can remain valid until expiry after profile
 edits/deletion. To revoke reception immediately, disable/remove the pairing in
 Codex as well. In-flight actions already accepted cannot be retracted by this
-mechanism; it must never substitute for sensitive-action authorisation.
+mechanism. Even a matching account only retains that caller's existing HA
+permissions; voice recognition is not an additional login or stronger approval
+for sensitive actions.
 
 Active conversation scope is ephemeral: matched profile/revision + agent within
 the supplied HA conversation, with a five-minute idle expiry and bounded records.

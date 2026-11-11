@@ -174,6 +174,9 @@ class IdentityAssessmentTests(unittest.TestCase):
                                     connector.wrap("spoken words", match, profiles))[1]
                     self.assertEqual(packet["voice"], "alice" if recognised else None)
                     self.assertEqual(packet.get("speaker_name"), "Alice" if recognised else None)
+                    self.assertEqual(
+                        packet.get("ha_user_id"), "test-account" if recognised else None,
+                    )
             self.assertEqual(connector.config["min_similarity"], .5)
             self.assertEqual(connector.config["min_margin"], .1)
 

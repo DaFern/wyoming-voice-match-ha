@@ -12,6 +12,11 @@ For everyday **Voice Match** with optional personal instructions, see
 on port 10352; no extra Wyoming STT integration is needed. Filtering without Codex
 uses port 10350 and does not require the paired feature.
 
+The paired Codex account-binding protocol uses encrypted packet v2. Both components
+must be updated together. Legacy v1 packets remain readable for compatibility but
+do not authorize recognized-voice actions or tools; no deployment is implied by
+these development docs.
+
 ## Before installing
 
 This is an experimental wrapper for upstream Wyoming Voice Match v1.9.1, not
